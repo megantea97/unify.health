@@ -1,0 +1,601 @@
+<title>Unify Health Hero</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<script>document.documentElement.classList.add('pre');</script>
+<style>
+/* Layout: a tall runway with one pinned hero. On load the headline sits centered, the frame lines draw out from the middle and
+   the text slides to its place; the rest of the page then loads in. A glass Unify mark floats behind everything, split into
+   pixels and drifting pieces. Scrolling pulls it together into the whole mark, then the page carries on. */
+:root {
+  --bg: #050923;
+  --white: #ffffff;
+  --muted: rgba(255, 255, 255, .55);
+  --line: rgba(255, 255, 255, .14);
+  --blue: #0b4cff;
+  --chip: #22243c;
+  --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --fx1: 16.1%;
+  --fx2: 83.1%;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; background: var(--bg); color: var(--white); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+.runway { position: relative; height: 380vh; }
+.hero { position: sticky; top: 0; height: 100vh; min-height: 520px; overflow: hidden; background: var(--bg); }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+.fallback { position: absolute; inset: 0; z-index: 0; display: none; align-items: center; justify-content: center; }
+.fallback svg { height: 70%; width: auto; }
+.no-gl .fallback { display: flex; }
+
+/* Frame lines */
+.vl, .hl { position: absolute; z-index: 1; background: var(--line); pointer-events: none; }
+.vl { top: 0; bottom: 0; width: 1px; transform-origin: 50% 50%; }
+.hl { left: 0; right: 0; height: 1px; transform-origin: 50% 50%; }
+.vl.a { left: var(--fx1); } .vl.b { left: var(--fx2); }
+.hl.a { top: 12.3%; } .hl.b { top: 61.8%; } .hl.c { top: 63.7%; }
+
+/* Nav */
+.nav { position: absolute; z-index: 3; left: var(--fx1); right: calc(100% - var(--fx2)); top: 0; height: 12.3%; display: flex; align-items: center; justify-content: space-between; padding: 0 1.8%; font-size: clamp(11px, .88vw, 15px); }
+.logo { display: inline-flex; align-items: center; gap: .6em; font-weight: 500; letter-spacing: -.01em; }
+.logo svg { height: 1.7em; width: auto; display: block; }
+.links { display: flex; gap: 2.4em; color: rgba(255, 255, 255, .8); }
+.links a:hover { color: #fff; }
+.cta { background: var(--blue); border: 0; border-radius: 8px; padding: .85em 1.5em; font-weight: 500; }
+
+/* Headline */
+h1 { margin: 0; font-weight: 500; letter-spacing: -.035em; line-height: 1.05; font-size: clamp(34px, 4.15vw, 84px); }
+.ln { position: absolute; z-index: 3; white-space: nowrap; }
+.ln.l1 { left: 18.1%; top: 16.8%; }
+.ln.l2 { left: 18.1%; top: 16.8%; margin-top: 1.05em; }
+.ln.l3 { right: 18.4%; top: 50.6%; }
+.in { display: inline-block; }
+.w { display: inline-block; white-space: nowrap; }
+.c { display: inline-block; will-change: transform, opacity, filter; }
+
+/* Lower content */
+.sub { position: absolute; z-index: 3; left: 17.5%; top: 66.2%; width: 31%; margin: 0; font-size: clamp(10.5px, .86vw, 16px); line-height: 1.5; font-weight: 400; color: rgba(255, 255, 255, .86); }
+.btns { position: absolute; z-index: 3; left: 17.5%; top: 77.5%; display: flex; gap: .7em; font-size: clamp(11px, .82vw, 14px); font-weight: 500; }
+.pill { border: 0; border-radius: 999px; padding: .95em 1.6em; background: var(--chip); }
+.pill.blue { background: var(--blue); }
+.built { position: absolute; z-index: 3; left: 51.7%; right: 17.6%; top: 66.6%; }
+.built .lab { font: 400 clamp(10px, .78vw, 13px)/1 var(--mono); color: var(--muted); letter-spacing: .04em; }
+.tabs { display: flex; flex-wrap: wrap; gap: .5em 1.9em; margin-top: 1.5em; font-size: clamp(10.5px, .8vw, 14px); }
+.tab { background: none; border: 0; padding: 0; color: rgba(255, 255, 255, .5); transition: color .25s; }
+.tab:hover { color: #fff; }
+.tab[aria-selected="true"] { color: #fff; }
+.say { display: flex; gap: .8em; align-items: baseline; margin: 1.5em 0 0; font-size: clamp(11px, .86vw, 15px); font-weight: 600; line-height: 1.35; min-height: 2.7em; }
+.say::before { content: ""; flex: none; width: .55em; height: .55em; border-radius: 50%; background: var(--blue); transform: translateY(.05em); }
+.say span { transition: opacity .3s, transform .3s; display: block; }
+.say.swap span { opacity: 0; transform: translateY(6px); }
+
+.hint { position: absolute; z-index: 3; left: 0; right: 0; bottom: 2.2%; display: flex; flex-direction: column; align-items: center; gap: .8em; font: 400 clamp(10px, .75vw, 12px)/1 var(--mono); letter-spacing: .02em; }
+.mouse { width: 11px; height: 18px; border-radius: 6px; background: var(--blue); position: relative; }
+.mouse::after { content: ""; position: absolute; left: 50%; top: 4px; width: 3px; height: 4px; margin-left: -1.5px; border-radius: 2px; background: #fff; animation: wheel 1.6s ease-in-out infinite; }
+@keyframes wheel { 0% { transform: translateY(0); opacity: 1; } 70% { transform: translateY(5px); opacity: 0; } 100% { opacity: 0; } }
+.reduce .mouse::after { animation: none; }
+
+/* Pre-intro state (the script plays the intro, then removes .pre) */
+.pre .c, .pre .reveal { opacity: 0; }
+.pre .vl { transform: scaleY(0); }
+.pre .hl { transform: scaleX(0); }
+.pre #gl { opacity: 0; }
+
+/* The page after the hero */
+.next { position: relative; z-index: 2; min-height: 100vh; background: var(--bg); border-top: 1px solid var(--line); display: grid; place-items: center; text-align: center; padding: 18vh max(16px, env(safe-area-inset-left, 0px)) 18vh max(16px, env(safe-area-inset-right, 0px)); }
+.next p { margin: 0; font-size: clamp(11px, .95vw, 14px); }
+.next p span { opacity: .55; padding: 0 .55em; }
+.next h2 { margin: 3vh auto 0; max-width: 14em; font-weight: 500; font-size: clamp(32px, 4.3vw, 76px); line-height: 1.04; letter-spacing: -.03em; text-wrap: balance; }
+
+/* Narrow */
+.hero[data-layout="narrow"] { --fx1: 5%; --fx2: 95%; }
+.hero[data-layout="narrow"] .links { display: none; }
+.hero[data-layout="narrow"] .nav { left: 0; right: 0; padding: 0 7%; height: 9%; font-size: 13px; }
+.hero[data-layout="narrow"] .hl.a { top: 9%; }
+.hero[data-layout="narrow"] h1 { font-size: clamp(24px, 7.3vw, 48px); }
+.hero[data-layout="narrow"] .ln.l1 { left: 7%; top: 14.5%; }
+.hero[data-layout="narrow"] .ln.l2 { left: 7%; top: 14.5%; margin-top: 1.05em; }
+.hero[data-layout="narrow"] .ln.l3 { left: 7%; right: auto; top: 14.5%; margin-top: 2.1em; }
+.hero[data-layout="narrow"] .sub { left: 7%; right: 7%; width: auto; top: 71%; font-size: 13px; }
+.hero[data-layout="narrow"] .btns { left: 7%; top: 86%; font-size: 12px; }
+.hero[data-layout="narrow"] .built, .hero[data-layout="narrow"] .hl.b, .hero[data-layout="narrow"] .hl.c { display: none; }
+.hero[data-layout="narrow"] .hint { bottom: 1.5%; font-size: 10px; }
+</style>
+
+<main class="runway" id="runway">
+  <section class="hero" id="hero" data-layout="wide" aria-label="Unify Health">
+    <canvas id="gl" aria-hidden="true"></canvas>
+    <div class="fallback" id="fallback" aria-hidden="true"></div>
+
+    <i class="vl a" aria-hidden="true"></i><i class="vl b" aria-hidden="true"></i>
+    <i class="hl a" aria-hidden="true"></i><i class="hl b" aria-hidden="true"></i><i class="hl c" aria-hidden="true"></i>
+
+    <nav class="nav reveal" aria-label="Main">
+      <a class="logo" href="#"><svg id="logoMark" viewBox="0 0 221 421" aria-hidden="true"></svg>unify.health</a>
+      <div class="links"><a href="#">Fields</a><a href="#">How it works</a><a href="#">About</a></div>
+      <button class="cta" type="button">Get in touch</button>
+    </nav>
+
+    <h1 id="h1" aria-label="The infrastructure for health data that moves with people.">
+      <span class="ln l1"><span class="in">The infrastructure</span></span>
+      <span class="ln l2"><span class="in">for health data</span></span>
+      <span class="ln l3"><span class="in">that moves with people.</span></span>
+    </h1>
+
+    <p class="sub reveal">A person's history should not end where a system does. Unify connects the records organizations already keep, so what is known about someone travels with them from one team, institution or stage of life to the next.</p>
+    <div class="btns reveal"><button class="pill" type="button">Find your field</button><button class="pill blue" type="button">How unify.health works</button></div>
+
+    <div class="built reveal">
+      <div class="lab">Built for</div>
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <p class="say" id="say" aria-live="polite"><span></span></p>
+    </div>
+
+    <div class="hint reveal" aria-hidden="true"><i class="mouse"></i><span>scroll down to discover</span></div>
+  </section>
+</main>
+
+<section class="next" aria-label="Next section">
+  <div>
+    <p>&Oslash;2<span>|</span>The problem</p>
+    <h2>Health data fragments when people move.</h2>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- The mark, traced from the supplied PNG (221 x 421 px). Three shapes: the top piece with its slot, and two lower panels. ---------- */
+  var MARK = { W: 221, H: 421, polys: [[[0.0,0.0],[0.0,194.0],[0.5,194.25],[1.0,196.0],[2.0,197.75],[3.75,199.75],[6.75,201.75],[8.5,202.0],[9.0,202.5],[11.75,202.75],[14.0,203.75],[16.5,204.0],[18.5,204.75],[20.0,204.75],[21.75,205.5],[24.25,205.75],[27.0,206.75],[28.75,206.75],[30.5,207.5],[34.25,208.0],[36.0,208.75],[37.75,208.75],[39.5,209.5],[42.0,209.75],[49.5,211.75],[51.0,211.75],[53.75,212.75],[56.5,213.0],[57.25,213.5],[60.0,213.75],[62.75,214.75],[64.25,214.75],[66.0,215.5],[68.75,215.75],[70.5,216.5],[74.25,217.0],[76.0,217.75],[77.75,217.75],[79.5,218.5],[83.25,219.0],[85.0,219.75],[86.75,219.75],[88.5,220.5],[92.25,221.0],[94.0,221.75],[95.75,221.75],[97.5,222.5],[105.5,223.75],[111.75,224.0],[119.25,222.75],[121.0,222.75],[123.75,221.75],[125.5,221.75],[128.25,220.75],[131.25,220.5],[133.0,219.75],[134.5,219.75],[137.5,218.75],[139.0,218.75],[141.75,217.75],[143.25,217.75],[146.25,216.75],[148.75,216.5],[149.5,216.0],[152.25,215.75],[155.25,214.75],[156.75,214.75],[158.5,214.0],[162.25,213.5],[168.5,211.75],[170.0,211.75],[177.5,209.75],[180.25,209.5],[181.75,208.75],[183.5,208.75],[186.25,207.75],[188.75,207.5],[189.5,207.0],[192.25,206.75],[195.25,205.75],[197.75,205.5],[198.5,205.0],[201.25,204.75],[204.25,203.75],[205.5,203.75],[207.0,203.0],[209.5,202.75],[212.75,201.75],[214.0,200.75],[214.5,200.75],[216.75,198.75],[218.75,195.5],[219.5,192.75],[219.5,1.0],[219.25,0.0],[217.5,0.0],[216.75,0.75],[215.75,1.0],[213.75,1.0],[210.25,2.0],[207.25,2.25],[205.25,3.0],[203.5,3.0],[200.0,4.0],[198.25,4.0],[190.0,6.0],[188.25,6.0],[184.75,7.0],[183.0,7.0],[179.75,8.0],[176.75,8.25],[174.75,9.0],[173.0,9.0],[169.5,10.0],[167.75,10.0],[164.5,11.0],[162.75,11.0],[159.5,12.0],[157.75,12.0],[154.25,13.0],[152.5,13.0],[149.25,14.0],[146.25,14.25],[144.25,15.0],[141.25,15.25],[139.25,16.0],[137.25,16.0],[134.0,17.0],[133.0,17.0],[131.0,18.0],[128.0,21.25],[127.0,23.25],[126.75,25.0],[126.75,188.5],[126.0,189.0],[118.75,190.25],[116.75,191.0],[113.0,191.25],[111.0,191.75],[106.25,191.5],[101.5,190.75],[99.75,190.0],[97.75,190.0],[94.5,189.0],[93.75,188.0],[94.0,187.75],[94.0,26.0],[93.75,24.25],[92.5,21.75],[89.75,19.0],[88.75,18.75],[88.0,18.0],[86.0,17.75],[85.25,17.25],[81.0,16.75],[79.0,16.0],[76.0,15.75],[75.25,15.25],[71.25,14.75],[70.5,14.25],[61.5,12.75],[60.75,12.25],[56.5,11.75],[55.75,11.25],[52.75,11.0],[49.75,10.0],[48.0,10.0],[45.0,9.0],[43.0,9.0],[41.25,8.25],[37.0,7.75],[35.0,7.0],[32.0,6.75],[31.25,6.25],[28.5,6.0],[26.5,5.25],[17.5,3.75],[16.75,3.25],[12.5,2.75],[10.5,2.0],[8.75,2.0],[6.75,1.25],[3.75,1.0],[2.25,0.5],[2.0,0.0]],[[0.0,224.0],[0.0,391.5],[0.75,392.0],[2.0,394.75],[4.0,396.75],[4.5,396.75],[5.75,397.75],[7.5,398.0],[8.0,398.5],[10.75,398.75],[12.25,399.5],[14.75,399.75],[17.5,400.75],[19.0,400.75],[20.5,401.5],[24.25,402.0],[25.75,402.75],[27.25,402.75],[30.0,403.75],[32.5,404.0],[34.25,404.75],[35.75,404.75],[37.25,405.5],[39.75,405.75],[42.75,406.75],[44.0,406.75],[46.75,407.75],[49.25,408.0],[50.75,408.75],[52.25,408.75],[55.0,409.75],[57.5,410.0],[59.25,410.75],[60.75,410.75],[62.25,411.5],[64.75,411.75],[66.5,412.5],[69.0,412.75],[71.75,413.75],[74.25,414.0],[75.75,414.75],[77.25,414.75],[80.0,415.75],[82.5,416.0],[83.25,416.5],[85.75,416.75],[87.25,417.5],[89.75,417.75],[91.5,418.5],[94.0,418.75],[97.5,419.75],[98.0,419.5],[98.0,254.5],[97.75,252.25],[96.5,249.75],[95.0,248.0],[92.25,246.0],[90.25,245.75],[89.75,245.25],[87.25,245.0],[84.25,244.0],[83.0,244.0],[80.25,243.0],[78.75,243.0],[77.25,242.25],[74.75,242.0],[72.0,241.0],[70.75,241.0],[67.75,240.0],[65.25,239.75],[63.75,239.0],[62.25,239.0],[60.5,238.25],[58.0,238.0],[55.25,237.0],[53.75,237.0],[52.25,236.25],[49.75,236.0],[47.0,235.0],[45.75,235.0],[42.75,234.0],[40.25,233.75],[38.75,233.0],[37.0,233.0],[35.5,232.25],[33.0,232.0],[30.25,231.0],[28.75,231.0],[27.25,230.25],[23.5,229.75],[22.0,229.0],[20.5,229.0],[17.75,228.0],[15.25,227.75],[13.5,227.0],[12.0,227.0],[10.5,226.25],[8.0,226.0],[6.0,225.25]],[[220.75,224.0],[218.5,224.25],[217.0,225.0],[215.5,225.0],[212.75,226.0],[211.25,226.0],[204.5,228.0],[203.0,228.0],[200.25,229.0],[198.75,229.0],[197.25,229.75],[193.5,230.25],[192.0,231.0],[190.5,231.0],[187.75,232.0],[186.25,232.0],[179.5,234.0],[178.0,234.0],[175.25,235.0],[173.75,235.0],[172.25,235.75],[168.5,236.25],[167.0,237.0],[165.5,237.0],[162.75,238.0],[161.25,238.0],[154.5,240.0],[153.0,240.0],[150.0,241.0],[147.75,241.25],[146.0,242.0],[143.5,242.25],[142.0,243.0],[140.5,243.0],[137.75,244.0],[136.25,244.0],[134.5,244.75],[128.5,246.0],[125.75,248.0],[124.25,249.75],[123.25,251.75],[122.75,254.25],[122.75,419.25],[123.25,419.75],[126.75,418.75],[129.25,418.5],[131.0,417.75],[133.25,417.5],[135.0,416.75],[136.5,416.75],[139.25,415.75],[140.75,415.75],[142.5,415.0],[145.75,414.5],[146.5,414.0],[149.0,413.75],[151.75,412.75],[154.25,412.5],[156.0,411.75],[157.5,411.75],[164.25,409.75],[165.75,409.75],[168.5,408.75],[170.0,408.75],[171.5,408.0],[175.25,407.5],[176.75,406.75],[178.25,406.75],[181.0,405.75],[182.5,405.75],[189.25,403.75],[190.75,403.75],[193.5,402.75],[195.0,402.75],[196.5,402.0],[200.25,401.5],[201.75,400.75],[203.25,400.75],[206.0,399.75],[207.5,399.75],[209.25,399.0],[212.5,398.5],[214.0,397.75],[215.25,397.75],[218.25,395.5],[219.0,394.0],[219.5,393.75],[220.0,392.0],[220.75,391.5]]] };
+
+  /* Tabs under "Built for". Only the Sport line was supplied; the others are placeholders to replace. */
+  var FIELDS = [
+    { n: 'Sport',          t: 'In sport, a transfer should not reset a student-athlete’s history.' },
+    { n: 'Student Health', t: 'In student health, care should follow a student from one campus to the next.' },
+    { n: 'Corrections',    t: 'In corrections, a person’s history should be whole at every handoff.' },
+    { n: 'Mass tort (legal)', t: 'In mass tort, records should be assembled once instead of request by request.' },
+    { n: 'COB solutions',  t: 'In coordination of benefits, the right record should reach the right payer.' }
+  ];
+
+  /* ---------- Helpers ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var clamp = function (x, a, b) { return Math.min(b, Math.max(a, x)); };
+  var sstep = function (a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var hero = $('hero'), runway = $('runway'), canvas = $('gl');
+  if (reduce) document.documentElement.classList.add('reduce');
+
+  function svgMark(fill) {
+    var ns = 'http://www.w3.org/2000/svg', g = '';
+    MARK.polys.forEach(function (p) { g += '<polygon fill="' + fill + '" points="' + p.map(function (q) { return q[0] + ',' + q[1]; }).join(' ') + '"/>'; });
+    return g;
+  }
+  $('logoMark').innerHTML = svgMark('#0b4cff');
+  $('fallback').innerHTML = '<svg viewBox="0 0 221 421">' + svgMark('#0b4cff') + '</svg>';
+
+  /* ---------- Built for tabs ---------- */
+  var tabsEl = $('tabs'), sayEl = $('say'), tabBtns = [];
+  FIELDS.forEach(function (f, i) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'tab'; b.setAttribute('role', 'tab');
+    b.textContent = f.n; b.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+    b.addEventListener('click', function () { pick(i); });
+    tabsEl.appendChild(b); tabBtns.push(b);
+  });
+  function pick(i) {
+    tabBtns.forEach(function (b, k) { b.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
+    sayEl.classList.add('swap');
+    setTimeout(function () { sayEl.firstElementChild.textContent = FIELDS[i].t; sayEl.classList.remove('swap'); }, reduce ? 0 : 220);
+  }
+  sayEl.firstElementChild.textContent = FIELDS[0].t;
+
+  /* ---------- Layout mode ---------- */
+  function setLayout() { hero.setAttribute('data-layout', hero.clientWidth / hero.clientHeight > 1.05 ? 'wide' : 'narrow'); }
+  setLayout();
+
+  /* ---------- Intro ---------- */
+  function splitChars() {
+    [].forEach.call(document.querySelectorAll('.ln .in'), function (el) {
+      var text = el.textContent; el.textContent = '';
+      var words = text.split(' ');
+      words.forEach(function (w, wi) {
+        var ws = document.createElement('span'); ws.className = 'w'; ws.setAttribute('aria-hidden', 'true');
+        w.split('').forEach(function (ch) { var c = document.createElement('span'); c.className = 'c'; c.textContent = ch; ws.appendChild(c); });
+        el.appendChild(ws);
+        if (wi < words.length - 1) el.appendChild(document.createTextNode(' '));
+      });
+    });
+  }
+  splitChars();
+
+  var introDone = false;
+  function finishIntro() {
+    introDone = true;
+    document.documentElement.classList.remove('pre');
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    onScroll();
+  }
+
+  function runIntro() {
+    try { history.scrollRestoration = 'manual'; } catch (e) {}
+    window.scrollTo(0, 0);
+    if (reduce || !hero.animate) { finishIntro(); return; }
+    document.documentElement.style.overflow = 'hidden';
+
+    var ins = [].slice.call(document.querySelectorAll('.ln .in'));
+    var hr = hero.getBoundingClientRect();
+    var lh = ins[0].getBoundingClientRect().height;
+    var cx = hr.left + hr.width / 2, cy = hr.top + hr.height * 0.47;
+    var anims = [], ease = 'cubic-bezier(.76,0,.2,1)', out = 'cubic-bezier(.16,1,.3,1)';
+
+    /* 1. The headline appears centered, three stacked lines, letter by letter */
+    var starts = ins.map(function (el, i) {
+      var r = el.getBoundingClientRect();
+      return { dx: cx - (r.left + r.width / 2), dy: cy + (i - 1) * lh * 1.02 - (r.top + r.height / 2) };
+    });
+    ins.forEach(function (el, i) {
+      var s = starts[i];
+      el.style.transform = 'translate(' + s.dx + 'px,' + s.dy + 'px)';
+      [].forEach.call(el.querySelectorAll('.c'), function (c, k) {
+        anims.push(c.animate([{ opacity: 0, transform: 'translateY(.4em)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }],
+          { duration: 850, delay: 300 + i * 150 + k * 24, easing: out, fill: 'both' }));
+      });
+      /* 3. ...then each line slides out to where it lives */
+      anims.push(el.animate([{ transform: 'translate(' + s.dx + 'px,' + s.dy + 'px)' }, { transform: 'translate(0,0)' }],
+        { duration: 1300, delay: 2250 + i * 80, easing: ease, fill: 'both' }));
+    });
+
+    /* 2. Frame lines draw out from the middle */
+    [].forEach.call(document.querySelectorAll('.vl'), function (l, i) {
+      anims.push(l.animate([{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }], { duration: 1500, delay: 1950 + i * 100, easing: out, fill: 'both' }));
+    });
+    [].forEach.call(document.querySelectorAll('.hl'), function (l, i) {
+      anims.push(l.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 1500, delay: 2050 + i * 110, easing: out, fill: 'both' }));
+    });
+
+    /* The mark fades up in its split state as the lines open */
+    anims.push(canvas.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 1800, delay: 2300, easing: 'ease-out', fill: 'both' }));
+
+    /* 4. Everything else loads in once the headline has landed */
+    [].forEach.call(document.querySelectorAll('.reveal'), function (el, i) {
+      anims.push(el.animate([{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }],
+        { duration: 900, delay: 3500 + i * 110, easing: out, fill: 'both' }));
+    });
+
+    Promise.all(anims.map(function (a) { return a.finished; })).then(function () {
+      anims.forEach(function (a) { try { a.commitStyles(); } catch (e) {} });
+      document.documentElement.classList.remove('pre');
+      anims.forEach(function (a) { a.cancel(); });
+      ins.forEach(function (el) { el.style.transform = ''; });
+      [].forEach.call(document.querySelectorAll('.c, .vl, .hl, .reveal'), function (el) { el.removeAttribute('style'); });
+      canvas.removeAttribute('style'); canvas.style.cssText = '';
+      finishIntro();
+    }).catch(finishIntro);
+  }
+
+  /* ---------- 3D ---------- */
+  function initGL() {
+    var THREE = window.THREE;
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.NoToneMapping;
+
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050923); // matches --bg
+
+    /* Camera: orthographic, turned a little so the glass has depth but the mark still reads as the logo */
+    var DIR = new THREE.Vector3(0.52, 0.26, 1).normalize();
+    var camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+    camera.position.copy(DIR).multiplyScalar(30);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    var R = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    var U = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+
+    /* Environment and lights: the same studio of softboxes as the tiles and the folder */
+    var pmrem = new THREE.PMREMGenerator(renderer);
+    (function () {
+      var sc = new THREE.Scene(); sc.background = new THREE.Color(0x050a24);
+      var add = function (w, h, pos, col, k) {
+        var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(k), side: THREE.DoubleSide }));
+        m.position.set(pos[0], pos[1], pos[2]); m.lookAt(0, 0, 0); sc.add(m);
+      };
+      add(14, 14, [0, 9, 0], 0xffffff, 2.2); add(3, 12, [-9, 3, 2], 0xffffff, 7); add(3, 12, [9, 2, -3], 0xcfe0ff, 5);
+      add(10, 2.5, [0, 1, -10], 0xffffff, 6); add(10, 2, [0, 0, 10], 0x9ec0ff, 3); add(12, 12, [0, -9, 0], 0x2a55ff, 2.5);
+      scene.environment = pmrem.fromScene(sc, 0.03).texture;
+    })();
+    var key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(-4, 6, 3); scene.add(key);
+    var rimLight = new THREE.DirectionalLight(0x6f98ff, 1.4); rimLight.position.set(5, 2, -4); scene.add(rimLight);
+    var glowTex = (function () {
+      var c = document.createElement('canvas'); c.width = c.height = 256;
+      var g = c.getContext('2d'), grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+      grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.45, 'rgba(255,255,255,.35)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad; g.fillRect(0, 0, 256, 256);
+      var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+
+    /* ----- The dissolve field -----
+       For any point in the mark's own space it says WHEN that point breaks away (0 = first, 1 = last): a soft diagonal
+       bias plus blocky noise. The glass, the rim lines and the pixels all read this one function, so they stay in step. */
+    var FIELD = [
+      'float hash13(vec3 p){ p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }',
+      'float field(vec3 l){',
+      '  vec3 n = clamp((l + vec3(1.2, 2.2, 0.3)) / vec3(2.4, 4.4, 0.6), 0.0, 1.0);',
+      '  float fb = 1.0 - (0.42 * n.y + 0.38 * n.x + 0.2 * n.z);',
+      '  float h = hash13(floor(l * 5.0));',
+      '  return 0.7 * fb + 0.3 * h;',
+      '}'
+    ].join('\n');
+    var uQ = { value: 1.02 };        // the glass front: everything below this value is still dust
+
+    function dissolveGlass(mat) {
+      mat.onBeforeCompile = function (sh) {
+        sh.uniforms.uQ = uQ;
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vLoc;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLoc = position;');
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vLoc;\nuniform float uQ;\n' + FIELD)
+          .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nfloat fq = field(vLoc) - uQ;\nif (fq < 0.0) discard;')
+          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(0.7, 0.86, 1.0) * (1.0 - smoothstep(0.0, 0.03, fq)) * step(0.001, uQ) * 1.1;');
+      };
+      mat.customProgramCacheKey = function () { return 'dissolveGlassHero'; };
+    }
+    var glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xe6f0ff, metalness: 0, roughness: 0.06, transmission: 1, thickness: 0.3, ior: 1.35,
+      attenuationColor: new THREE.Color(0x4f95ff), attenuationDistance: 1.4,
+      clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.2,
+      emissive: new THREE.Color(0x2a66ff), emissiveIntensity: 0.85
+    });
+    dissolveGlass(glassMat);
+
+    /* Thick, even rim lines: each segment is a screen-space quad of fixed pixel width */
+    var lU = { uRes: { value: new THREE.Vector2(1, 1) }, uW: { value: 2 }, uQ: uQ };
+    var lineMat = new THREE.ShaderMaterial({
+      uniforms: lU, side: THREE.DoubleSide,
+      vertexShader: [
+        'attribute vec3 aA; attribute vec3 aB; attribute vec2 aTS;',
+        'uniform vec2 uRes; uniform float uW; varying vec3 vLoc;',
+        'void main(){',
+        '  vec4 ca = projectionMatrix * modelViewMatrix * vec4(aA, 1.0);',
+        '  vec4 cb = projectionMatrix * modelViewMatrix * vec4(aB, 1.0);',
+        '  vec2 d = (cb.xy / cb.w - ca.xy / ca.w) * uRes * 0.5; float L = length(d);',
+        '  vec2 dir = L > 0.0001 ? d / L : vec2(1.0, 0.0); vec2 nrm = vec2(-dir.y, dir.x);',
+        '  vec4 c = mix(ca, cb, aTS.x);',
+        '  vec2 off = (nrm * aTS.y * uW * 0.5 + dir * (aTS.x * 2.0 - 1.0) * uW * 0.5) / (uRes * 0.5);',
+        '  gl_Position = c + vec4(off * c.w, 0.0, 0.0); vLoc = mix(aA, aB, aTS.x);',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'uniform float uQ; varying vec3 vLoc;', FIELD,
+        'void main(){ float f = field(vLoc); if (f < uQ) discard;',
+        '  vec3 c = mix(vec3(0.84, 0.91, 1.0), vec3(1.0), (1.0 - smoothstep(0.0, 0.06, f - uQ)) * 0.85 * step(0.001, uQ));',
+        '  gl_FragColor = vec4(c, 1.0); }'
+      ].join('\n')
+    });
+
+    /* Pixels: the mark begins as a drifting cloud of square pixels. As you scroll, each pixel flies home, landing just as the
+       glass forms at its spot, and then drops out. uA = how assembled the mark is (0 = all dust, 1 = whole). */
+    var pU = { uA: { value: 0 }, uTime: { value: 0 }, uPx: { value: 1 }, uSnap: { value: 0.05 } };
+    var pMat = new THREE.ShaderMaterial({
+      uniforms: pU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: [
+        'attribute vec4 aRand; attribute float aKind;',
+        'uniform float uA, uTime, uPx, uSnap; varying float vA; varying vec3 vC;', FIELD,
+        'void main(){',
+        '  float f = field(position);',
+        '  float arrive = 1.0 - f;                                   // when the glass forms here',
+        '  float t = clamp((uA - (arrive - 0.34)) / 0.34, 0.0, 1.0);',
+        '  float te = t * t * (3.0 - 2.0 * t);',
+        '  float away = 1.0 - te;',
+        '  vec3 rn = aRand.xyz + vec3(aRand.w, fract(aRand.x * 7.3), fract(aRand.y * 5.1)) - 1.0;   // soft, bell-shaped cloud',
+        '  vec3 cloud = rn * vec3(2.5, 2.6, 1.6);',
+        '  vec3 drift = vec3(sin(uTime * 0.55 + aRand.w * 40.0), cos(uTime * 0.45 + aRand.x * 30.0) * 0.8, sin(uTime * 0.35 + aRand.y * 20.0)) * 0.22;',
+        '  vec3 wp = position + (cloud + drift) * away;',
+        '  wp = floor(wp / uSnap + 0.5) * uSnap;',
+        '  gl_Position = projectionMatrix * modelViewMatrix * vec4(wp, 1.0);',
+        '  float size = (aKind < 0.5 ? 1.7 : 2.3) * (0.7 + 0.5 * aRand.w) * (aRand.z > 0.93 ? 1.9 : 1.0);',
+        '  gl_PointSize = max(1.0, floor(size * uPx + 0.5));',
+        '  float landed = clamp((uA - arrive) / 0.12, 0.0, 1.0);        // fade out once the glass has formed',
+        '  vA = (0.3 + 0.6 * aRand.w) * (1.0 - landed) * (0.5 + 0.35 * away);',
+        '  float hot = (1.0 - smoothstep(0.0, 0.2, away)) * 0.8;',
+        '  vC = mix(mix(vec3(0.22, 0.45, 1.0), vec3(0.9, 0.96, 1.0), aRand.w * aRand.w), vec3(1.0), hot);',
+        '}'
+      ].join('\n'),
+      fragmentShader: 'varying float vA; varying vec3 vC; void main(){ if (vA < 0.01) discard; gl_FragColor = vec4(vC, vA); }'
+    });
+
+    function rng32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+    var rnd = rng32(20261119);
+
+    /* ----- The mark: three bevelled glass pieces ----- */
+    var SC = 4.2 / MARK.H, TH = 0.34, BT = 0.03;
+    var root = new THREE.Group(); scene.add(root);
+    var pieces = [];
+    var OFFS = [
+      { off: [-0.1, 0.45, -1.0], rot: [-0.26, 0.2, 0.05] },      // top piece lifts up and back
+      { off: [-1.0, -0.15, 0.9], rot: [0.14, -0.28, 0.14] },    // lower left drifts out and forward
+      { off: [1.0, -0.35, -0.5],  rot: [-0.1, 0.3, -0.15] }      // lower right drifts out and down
+    ];
+    function inPoly(poly, x, y) {
+      var c = false;
+      for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        if ((poly[i][1] > y) !== (poly[j][1] > y) && x < (poly[j][0] - poly[i][0]) * (y - poly[i][1]) / (poly[j][1] - poly[i][1]) + poly[i][0]) c = !c;
+      }
+      return c;
+    }
+    MARK.polys.forEach(function (raw, pi) {
+      var poly = raw.map(function (p) { return [(p[0] - MARK.W / 2) * SC, (MARK.H / 2 - p[1]) * SC]; });
+      var shape = new THREE.Shape(poly.map(function (p) { return new THREE.Vector2(p[0], p[1]); }));
+      var sharp = new THREE.ExtrudeGeometry(shape, { depth: TH, bevelEnabled: false, curveSegments: 1 }); sharp.translate(0, 0, -TH / 2);
+      var glass = new THREE.ExtrudeGeometry(shape, { depth: TH - 2 * BT, bevelEnabled: true, bevelThickness: BT, bevelSize: BT, bevelOffset: -BT, bevelSegments: 4, curveSegments: 1 });
+      glass.translate(0, 0, -(TH / 2 - BT));
+      var edges = new THREE.EdgesGeometry(sharp, 30); sharp.dispose();
+      var ep = edges.attributes.position.array, segs = [], lens = [], total = 0;
+      for (var i = 0; i < ep.length; i += 6) {
+        segs.push([ep[i], ep[i + 1], ep[i + 2], ep[i + 3], ep[i + 4], ep[i + 5]]);
+        total += Math.hypot(ep[i + 3] - ep[i], ep[i + 4] - ep[i + 1], ep[i + 5] - ep[i + 2]); lens.push(total);
+      }
+      /* Rim lines as quads */
+      var nS = segs.length, aA = new Float32Array(nS * 12), aB = new Float32Array(nS * 12), aTS = new Float32Array(nS * 8), idx = new Uint32Array(nS * 6);
+      segs.forEach(function (s, k) {
+        for (var v = 0; v < 4; v++) {
+          var o3 = (k * 4 + v) * 3, o2 = (k * 4 + v) * 2;
+          aA[o3] = s[0]; aA[o3 + 1] = s[1]; aA[o3 + 2] = s[2]; aB[o3] = s[3]; aB[o3 + 1] = s[4]; aB[o3 + 2] = s[5];
+          aTS[o2] = v >> 1; aTS[o2 + 1] = (v & 1) ? 1 : -1;
+        }
+        var b = k * 4; idx.set([b, b + 1, b + 2, b + 2, b + 1, b + 3], k * 6);
+      });
+      var lg = new THREE.BufferGeometry();
+      lg.setAttribute('position', new THREE.BufferAttribute(aA, 3)); lg.setAttribute('aA', new THREE.BufferAttribute(aA, 3));
+      lg.setAttribute('aB', new THREE.BufferAttribute(aB, 3)); lg.setAttribute('aTS', new THREE.BufferAttribute(aTS, 2)); lg.setIndex(new THREE.BufferAttribute(idx, 1));
+
+      /* Pixels: along the rim, plus dust scattered over both faces */
+      var homes = [], rands = [], kinds = [];
+      var add = function (x, y, z, kind) { homes.push(x, y, z); rands.push(rnd(), rnd(), rnd(), rnd()); kinds.push(kind); };
+      var nRim = Math.round(total * 100);
+      for (var n = 0; n < nRim; n++) {
+        var tg = rnd() * total, lo = 0, hi = lens.length - 1;
+        while (lo < hi) { var mid = (lo + hi) >> 1; if (lens[mid] < tg) lo = mid + 1; else hi = mid; }
+        var s = segs[lo], t = rnd(); add(s[0] + (s[3] - s[0]) * t, s[1] + (s[4] - s[1]) * t, s[2] + (s[5] - s[2]) * t, 1);
+      }
+      var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+      poly.forEach(function (p) { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
+      var dust = 0, area = 0;
+      for (var q = 0; q < poly.length; q++) { var q2 = (q + 1) % poly.length; area += poly[q][0] * poly[q2][1] - poly[q2][0] * poly[q][1]; }
+      var nDust = Math.round(Math.abs(area) / 2 * 1500);
+      while (dust < nDust) {
+        var x = minX + rnd() * (maxX - minX), y = minY + rnd() * (maxY - minY);
+        if (inPoly(poly, x, y)) { add(x, y, rnd() < 0.5 ? -TH / 2 : TH / 2, 0); dust++; }
+      }
+      var pg = new THREE.BufferGeometry();
+      pg.setAttribute('position', new THREE.Float32BufferAttribute(homes, 3));
+      pg.setAttribute('aRand', new THREE.Float32BufferAttribute(rands, 4));
+      pg.setAttribute('aKind', new THREE.Float32BufferAttribute(kinds, 1));
+
+      /* The group sits at the piece's centre so it turns about itself; its children keep the assembled coordinates the dissolve field reads */
+      var cxp = (minX + maxX) / 2, cyp = (minY + maxY) / 2;
+      var grp = new THREE.Group(), inner = new THREE.Group(); inner.position.set(-cxp, -cyp, 0);
+      var gm = new THREE.Mesh(glass, glassMat);
+      var lm = new THREE.Mesh(lg, lineMat); lm.frustumCulled = false;
+      var pm = new THREE.Points(pg, pMat); pm.frustumCulled = false;
+      inner.add(gm); inner.add(lm); inner.add(pm); grp.add(inner); root.add(grp);
+      pieces.push({ grp: grp, cx: cxp, cy: cyp, o: OFFS[pi] || OFFS[0] });
+    });
+
+    /* ----- Blueprint hints: construction lines that draw in around the whole mark ----- */
+    var MW = MARK.W * SC / 2, MHh = 2.1, BZ = -0.32;
+    var bp = [];
+    var L = function (x1, y1, x2, y2) { bp.push(x1, y1, BZ, x2, y2, BZ); };
+    var gap = -0.1;
+    (function () {
+      var ox = MW + 0.28, oy = MHh + 0.28, arm = 0.42;                        // corner brackets
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
+        L(c[0] * ox, c[1] * oy, c[0] * (ox - arm), c[1] * oy); L(c[0] * ox, c[1] * oy, c[0] * ox, c[1] * (oy - arm));
+      });
+      var dx = -MW - 0.75;                                                      // left height dimension
+      L(dx, -MHh, dx, MHh); L(dx - 0.1, -MHh, dx + 0.1, -MHh); L(dx - 0.1, MHh, dx + 0.1, MHh);
+      L(-MW - 0.08, MHh, dx - 0.12, MHh); L(-MW - 0.08, -MHh, dx - 0.12, -MHh);
+      L(dx, MHh, dx + 0.07, MHh - 0.16); L(dx, MHh, dx - 0.07, MHh - 0.16); L(dx, -MHh, dx + 0.07, -MHh + 0.16); L(dx, -MHh, dx - 0.07, -MHh + 0.16);
+      var rr = 0.24, seg = 28;                                                  // registration ring at the centre
+      for (var i = 0; i < seg; i++) { var a1 = i / seg * 6.2832, a2 = (i + 1) / seg * 6.2832; L(Math.cos(a1) * rr, gap + Math.sin(a1) * rr, Math.cos(a2) * rr, gap + Math.sin(a2) * rr); }
+      L(-0.5, gap, 0.5, gap); L(0, gap - 0.5, 0, gap + 0.5);
+      L(-MW - 1.5, gap, -MW - 0.2, gap); L(MW + 0.2, gap, MW + 1.5, gap);       // level line through the join
+    })();
+    var bpGeo = new THREE.BufferGeometry(); bpGeo.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
+    var bpMat = new THREE.LineBasicMaterial({ color: 0xcfe0ff, transparent: true, opacity: 0, depthWrite: false });
+    root.add(new THREE.LineSegments(bpGeo, bpMat));
+    var dash = [0, -2.75, BZ, 0, 2.9, BZ, -2.7, gap, BZ, 2.7, gap, BZ];
+    var dGeo = new THREE.BufferGeometry(); dGeo.setAttribute('position', new THREE.Float32BufferAttribute(dash, 3));
+    var dMat = new THREE.LineDashedMaterial({ color: 0xcfe0ff, transparent: true, opacity: 0, depthWrite: false, dashSize: 0.18, gapSize: 0.1 });
+    var dLine = new THREE.LineSegments(dGeo, dMat); dLine.computeLineDistances(); root.add(dLine);
+
+    /* Glow behind the mark */
+    var halo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTex, color: 0x2f62ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    scene.add(halo);
+
+    /* ----- Layout ----- */
+    var rootBase = new THREE.Vector3(), haloScale = 12, ppuNow = 1;
+    function resize() {
+      setLayout();
+      var W = hero.clientWidth || 1, H = hero.clientHeight || 1;
+      var narrow = hero.getAttribute('data-layout') === 'narrow';
+      var dpr = Math.min(window.devicePixelRatio || 1, window.matchMedia('(pointer: coarse)').matches ? 1.5 : 2);
+      renderer.setPixelRatio(dpr); renderer.setSize(W, H, false);
+      pU.uPx.value = dpr; lU.uRes.value.set(W * dpr, H * dpr); lU.uW.value = 1.5 * dpr;
+      var ppu = narrow ? Math.min(0.46 * H / 4.4, 0.7 * W / 6.4) : 0.5 * H / 4.4;   // the mark is about 4.4 units tall with its hints
+      ppuNow = ppu;
+      var vw = W / ppu, vh = H / ppu;
+      camera.left = -vw / 2; camera.right = vw / 2; camera.top = vh / 2; camera.bottom = -vh / 2; camera.updateProjectionMatrix();
+      var fx = narrow ? 0.5 : 0.645, fy = narrow ? 0.55 : 0.385;                    // where the mark's centre sits on screen
+      rootBase.set(0, 0, 0).addScaledVector(R, (fx - 0.5) * vw).addScaledVector(U, (0.5 - fy) * vh);
+      haloScale = Math.max(vw, vh) * 0.9;
+    }
+    resize();
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(hero); else window.addEventListener('resize', resize);
+
+    var mx = 0, my = 0, px = 0, py = 0;
+    window.addEventListener('pointermove', function (e) { mx = e.clientX / innerWidth - 0.5; my = e.clientY / innerHeight - 0.5; }, { passive: true });
+
+    /* s: 0 = a cloud of pixels, 1 = the whole glass mark. hold: 0..1 across the final beat before the page carries on. */
+    function render(s, hold, now) {
+      var a = clamp(s / 0.85, 0, 1);             // how assembled the mark is
+      var ee = (1 - a) * 0.12;                   // the three pieces settle the last little way together
+      uQ.value = (1 - a) * 1.02; pU.uA.value = a; pU.uTime.value = reduce ? 0 : now * 0.001;
+      px += (mx - px) * 0.06; py += (my - py) * 0.06;
+      var bob = reduce ? 0 : Math.sin(now * 0.0011) * 0.05;
+      var sc = 1 + 0.1 * hold;
+      root.position.copy(rootBase).addScaledVector(U, bob);
+      root.rotation.set(py * 0.14, px * 0.3, 0);
+      root.scale.setScalar(sc);
+      pieces.forEach(function (p, i) {
+        var o = p.o, wob = reduce ? 0 : Math.sin(now * 0.0009 + i * 2.1) * 0.06 * ee;
+        p.grp.position.set(p.cx + o.off[0] * ee, p.cy + o.off[1] * ee + wob, o.off[2] * ee);
+        p.grp.rotation.set(o.rot[0] * ee, o.rot[1] * ee, o.rot[2] * ee);
+      });
+      var bpO = 0.34 * sstep(0.7, 1.0, a);
+      bpMat.opacity = bpO; dMat.opacity = bpO * 0.8;
+      halo.position.copy(rootBase).addScaledVector(DIR, -3.5); halo.quaternion.copy(camera.quaternion);
+      halo.scale.setScalar(haloScale);
+      halo.material.opacity = 0.08 + 0.22 * a;
+      renderer.render(scene, camera);
+    }
+    return { render: render };
+  }
+
+  /* ---------- Scroll + loop ---------- */
+  var target = 0, sm = 0, holdT = 0, holdSm = 0, gl = null;
+  function onScroll() {
+    if (!introDone) { target = 0; holdT = 0; return; }
+    var r = runway.getBoundingClientRect();
+    var range = r.height - hero.clientHeight;
+    var p = range > 0 ? clamp(-r.top / range, 0, 1) : 0;
+    target = clamp(p / 0.74, 0, 1);               // the mark pulls together over the first three quarters of the runway
+    holdT = sstep(0.8, 1, p);                     // then holds, and nudges forward as the page takes over
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+
+  try {
+    if (!window.THREE) throw new Error('three.js did not load');
+    gl = initGL();
+  } catch (err) { console.warn(err); document.body.classList.add('no-gl'); hero.classList.add('no-gl'); }
+
+  runIntro();
+
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    var k = reduce ? 1 : 1 - Math.exp(-dt * 5);
+    sm += (target - sm) * k; holdSm += (holdT - holdSm) * k;
+    if (gl) gl.render(sm, holdSm, now);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>

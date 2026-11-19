@@ -1,0 +1,459 @@
+<title>One Record Roller</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: the whole "How it works" section is pinned for four scroll steps.
+   Header and pager sit on top, the rolling copy block bottom left with a giant rolling word,
+   and the glass / wireframe layer stack runs to the right of the copy. Single committed blue look. */
+:root {
+  --blue: #0648e6;
+  --white: #ffffff;
+  --white-dim: rgba(255, 255, 255, .86);
+  --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --pad: max(7.6vw, 20px);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--blue); color: var(--white); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+
+.roller { position: relative; height: 380vh; }
+.stage { position: sticky; top: 0; height: 100vh; overflow: hidden; background: var(--blue); }
+
+/* The canvas only covers the right side, so layers never run under the headline */
+#gl {
+  position: absolute; z-index: 0; left: 36%; right: 0; top: 33%; bottom: 0; width: 64%; height: 67%; display: block;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+}
+
+.eyebrow {
+  position: absolute; z-index: 2; top: 8.6%; margin: 0;
+  left: max(var(--pad), env(safe-area-inset-left, 0px));
+  display: flex; gap: 10px; align-items: center;
+  font-size: clamp(10px, 1.05vw, 12px); letter-spacing: .01em;
+}
+.eyebrow .bar { opacity: .8; }
+
+.headline {
+  position: absolute; z-index: 2; top: 12.4%; margin: 0;
+  left: max(var(--pad), env(safe-area-inset-left, 0px));
+  font-weight: 300; font-size: clamp(1.9rem, 4.3vw, 3.4rem); line-height: 1.07; letter-spacing: -.012em;
+}
+.sub {
+  position: absolute; z-index: 2; top: 25.4%; margin: 0; max-width: 31em;
+  left: max(var(--pad), env(safe-area-inset-left, 0px));
+  right: max(var(--pad), env(safe-area-inset-right, 0px));
+  font-weight: 300; font-size: clamp(11px, 1.2vw, 14px); line-height: 1.28; color: var(--white-dim);
+}
+.sub span { display: block; max-width: 29em; }
+
+.pager {
+  position: absolute; z-index: 2; top: 38.4%;
+  left: max(calc(var(--pad) + .7vw), env(safe-area-inset-left, 0px));
+  right: max(var(--pad), env(safe-area-inset-right, 0px));
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  font-size: clamp(11px, 1.15vw, 13px);
+}
+.pager .left { display: flex; align-items: center; gap: 14px; }
+#pn { letter-spacing: .12em; min-width: 2.2em; }
+.dots { display: flex; gap: 2px; list-style: none; margin: 0; padding: 0; }
+.dot { appearance: none; width: 20px; height: 20px; display: grid; place-items: center; background: none; border: 0; padding: 0; cursor: pointer; }
+.dot::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--white); opacity: .42; transition: opacity .3s; }
+.dot[aria-current="true"]::before { opacity: 1; }
+.dot:focus-visible, .cta:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
+
+/* Rolling copy */
+.copy {
+  position: absolute; z-index: 2; top: 56%; width: min(19vw, 230px); min-width: 150px;
+  left: max(calc(var(--pad) + 1.4vw), env(safe-area-inset-left, 0px));
+}
+.roll { display: grid; overflow: hidden; padding-block: .14em; margin-block: -.14em; }
+.roll .r { grid-area: 1 / 1; display: block; }
+#r-label { font-size: clamp(11px, 1.15vw, 13px); }
+#r-title { margin: 1.3em 0 0; font-weight: 700; font-size: clamp(16px, 1.8vw, 22px); line-height: 1.12; max-width: 9.6em; letter-spacing: -.005em; }
+#r-body  { margin: 1.1em 0 0; font-weight: 400; font-size: clamp(10.5px, 1.1vw, 13px); line-height: 1.28; max-width: 15em; }
+.copy h3 { margin: 0; font: inherit; }
+.copy p { margin: 0; }
+
+.word { position: absolute; z-index: 2; left: max(var(--pad), env(safe-area-inset-left, 0px)); bottom: 0; height: 0; }
+#r-word { position: absolute; left: 0; bottom: 0; align-items: end; padding-block: 0; margin-block: 0; padding-top: .1em; line-height: .86; letter-spacing: -.035em; font-weight: 400; white-space: nowrap; }
+#r-word .r { justify-self: start; margin-bottom: -.1em; }
+
+.cta {
+  position: absolute; z-index: 3; bottom: clamp(18px, 4.3%, 40px); right: max(var(--pad), env(safe-area-inset-right, 0px));
+  appearance: none; border: 0; background: var(--white); color: var(--blue); cursor: pointer;
+  padding: .75em 1.5em; border-radius: 999px; font: 500 clamp(10px, 1.05vw, 12px)/1 var(--font);
+}
+
+.nogl { display: none; position: absolute; z-index: 2; right: max(var(--pad), env(safe-area-inset-right, 0px)); top: 56%; width: min(30vw, 320px); padding: 16px; border: 1px solid var(--white); font-size: 12px; line-height: 1.4; }
+.no-gl .nogl { display: block; }
+.no-gl #gl { display: none; }
+
+/* Narrow screens: layer stack goes in the middle band, copy docks above the big word */
+.stage[data-layout="narrow"] #gl { left: 0; right: 0; width: 100%; top: 38%; height: 25%; }
+.stage[data-layout="narrow"] .eyebrow { top: 7%; }
+.stage[data-layout="narrow"] .headline { top: 10%; font-size: clamp(1.8rem, 9vw, 2.6rem); }
+.stage[data-layout="narrow"] .sub { top: 26%; }
+.stage[data-layout="narrow"] .pager { top: 36.5%; }
+.stage[data-layout="narrow"] .copy {
+  top: auto; bottom: 25%; width: auto; min-width: 0;
+  left: max(var(--pad), env(safe-area-inset-left, 0px)); right: max(var(--pad), env(safe-area-inset-right, 0px));
+}
+.stage[data-layout="narrow"] #r-title { max-width: 14em; }
+.stage[data-layout="narrow"] #r-body { max-width: 24em; }
+.stage[data-layout="narrow"] .cta { bottom: 15%; }
+.stage[data-layout="narrow"] .nogl { top: 40%; width: auto; left: max(var(--pad), env(safe-area-inset-left, 0px)); }
+</style>
+
+<main class="roller" id="roller">
+  <section class="stage" id="stage" data-layout="wide" aria-label="How it works">
+    <canvas id="gl" aria-hidden="true"></canvas>
+
+    <p class="eyebrow"><span>&Oslash;3</span><span class="bar">|</span><span>How it works</span></p>
+    <h2 class="headline">One record.<br>Whole at every handoff</h2>
+    <p class="sub"><span>Unify sits between systems your organization already runs on, so the record arrives complete wherever the person goes next, under their consent.</span></p>
+
+    <div class="pager">
+      <div class="left">
+        <div class="roll" id="pn" aria-hidden="true"></div>
+        <ol class="dots" id="dots"></ol>
+      </div>
+      <span>One record</span>
+    </div>
+
+    <div class="copy" aria-live="polite">
+      <div class="roll" id="r-label"></div>
+      <h3 class="roll" id="r-title"></h3>
+      <p class="roll" id="r-body"></p>
+    </div>
+
+    <div class="word" aria-hidden="true"><div class="roll" id="r-word"></div></div>
+
+    <button class="cta" type="button">Request a conversation</button>
+    <p class="nogl">WebGL is not available in this browser, so the layer stack can't draw. The copy and navigation still work.</p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Content ---------- */
+  var TILES = [
+    { label: 'Ownership',  title: 'The record belongs to the person.', body: 'It travels with them, in any field, rather than staying behind with the last organization', word: 'Owned' },
+    { label: 'Consent',    title: 'Consent comes first.',              body: 'Every exchange is governed by the person’s choice, captured before the moment is needed', word: 'Consented' },
+    { label: 'Governance', title: 'Governed by design.',               body: 'Role-based access and clinical oversight decide who sees what, and why.', word: 'Governed' },
+    { label: 'Standards',  title: 'Nothing to rebuild.',               body: 'Built on the standards health systems already use, so existing systems connect as they are.', word: 'Standard' }
+  ];
+  var N = TILES.length;
+
+  /* ---------- Helpers ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var clamp = function (x, a, b) { return Math.min(b, Math.max(a, x)); };
+  var sstep = function (a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var stage = $('stage'), roller = $('roller'), canvas = $('gl');
+  var wordEl = $('r-word');
+
+  /* Pull the roll toward whole numbers so it rarely rests between two layers */
+  function magnet(x) {
+    var n = Math.round(x), f = x - n;
+    return n + (f < 0 ? -1 : 1) * 0.5 * Math.pow(Math.abs(f) * 2, 1.6);
+  }
+
+  /* ---------- Rolling text ---------- */
+  function wordBase() { return clamp(stage.clientWidth * (stage.getAttribute('data-layout') === 'narrow' ? 0.2 : 0.128), 80, 240); }
+  function fitWord(span) {
+    var base = wordBase(), maxW = stage.clientWidth * (stage.getAttribute('data-layout') === 'narrow' ? 0.88 : 0.6);
+    span.style.fontSize = base + 'px';
+    var w = span.getBoundingClientRect().width;
+    if (w > maxW) span.style.fontSize = (base * maxW / w) + 'px';
+  }
+
+  /* Old text rolls out one way while the new text rolls in from the other. dir > 0 means scrolling forward. */
+  function swap(el, text, dir, delay, dur, fit) {
+    var kids = el.children;
+    while (kids.length > 1) kids[0].remove();
+    var old = kids[0] || null;
+    var nu = document.createElement('span'); nu.className = 'r'; nu.textContent = text;
+    el.appendChild(nu);
+    if (fit) fit(nu);
+    if (!old) return;
+    old.setAttribute('aria-hidden', 'true');
+    if (reduce || !nu.animate) { old.remove(); return; }
+    var opt = { duration: dur, delay: delay, easing: 'cubic-bezier(.7,0,.2,1)', fill: 'both' };
+    nu.animate([{ transform: 'translateY(' + (dir > 0 ? '115%' : '-115%') + ')' }, { transform: 'translateY(0)' }], opt);
+    var out = old.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(' + (dir > 0 ? '-115%' : '115%') + ')' }], opt);
+    out.onfinish = function () { old.remove(); };
+  }
+
+  var dotsEl = $('dots');
+  var dots = TILES.map(function (t, i) {
+    var li = document.createElement('li');
+    var b = document.createElement('button');
+    b.className = 'dot'; b.type = 'button';
+    b.setAttribute('aria-label', 'Go to ' + t.label);
+    b.addEventListener('click', function () { goTo(i); });
+    li.appendChild(b); dotsEl.appendChild(li);
+    return b;
+  });
+
+  function showCopy(i, dir) {
+    var t = TILES[i];
+    swap($('pn'), 'Ø' + (i + 1), dir, 0, 550);
+    swap($('r-label'), t.label, dir, 0, 600);
+    swap($('r-title'), t.title, dir, 70, 650);
+    swap($('r-body'), t.body, dir, 140, 700);
+    swap(wordEl, t.word, dir, 0, 750, fitWord);
+    dots.forEach(function (b, k) { b.setAttribute('aria-current', k === i ? 'true' : 'false'); });
+  }
+
+  function goTo(i) {
+    var range = roller.offsetHeight - stage.clientHeight;
+    var top = roller.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: top + range * i / (N - 1), behavior: reduce ? 'auto' : 'smooth' });
+  }
+
+  /* ---------- 3D ---------- */
+  function initGL() {
+    var THREE = window.THREE;
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.localClippingEnabled = true;
+
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0648e6); // matches --blue so the canvas edge is invisible
+
+    /* Camera: orthographic, near-isometric. U is the screen-vertical axis in world space, R is screen-horizontal. */
+    var DIR = new THREE.Vector3(1, 0.85, 1).normalize();
+    var camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+    camera.position.copy(DIR).multiplyScalar(30);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    var U = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+
+    /* Environment: a procedural studio of softboxes so the glass has something to reflect */
+    var pmrem = new THREE.PMREMGenerator(renderer);
+    (function () {
+      var sc = new THREE.Scene();
+      sc.background = new THREE.Color(0x050a24);
+      var add = function (w, h, pos, col, k) {
+        var m = new THREE.Mesh(
+          new THREE.PlaneGeometry(w, h),
+          new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(k), side: THREE.DoubleSide })
+        );
+        m.position.set(pos[0], pos[1], pos[2]); m.lookAt(0, 0, 0); sc.add(m);
+      };
+      add(14, 14, [0, 9, 0], 0xffffff, 2.2);
+      add(3, 12, [-9, 3, 2], 0xffffff, 7);
+      add(3, 12, [9, 2, -3], 0xcfe0ff, 5);
+      add(10, 2.5, [0, 1, -10], 0xffffff, 6);
+      add(10, 2, [0, 0, 10], 0x9ec0ff, 3);
+      add(12, 12, [0, -9, 0], 0x2a55ff, 2.5);
+      scene.environment = pmrem.fromScene(sc, 0.03).texture;
+    })();
+
+    var key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(-4, 6, 3); scene.add(key);
+    var rim = new THREE.DirectionalLight(0x6f98ff, 1.4); rim.position.set(5, 2, -4); scene.add(rim);
+
+    /* Soft radial sprite texture for glow and halo */
+    var glowTex = (function () {
+      var c = document.createElement('canvas'); c.width = c.height = 256;
+      var g = c.getContext('2d');
+      var grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.45, 'rgba(255,255,255,.35)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad; g.fillRect(0, 0, 256, 256);
+      var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+
+    /* ----- Geometry: one layer = floor + wall + lid, drawn as glass or as wireframe ----- */
+    var S = 3.0;      // layer side
+    var BT = 0.035;   // glass bevel
+    var PARTS = [
+      { outer: [S, S, 0.2],                hole: null,                       h: 0.16, y0: 0 },
+      { outer: [S, S, 0.2],                hole: [S - 0.4, S - 0.4, 0.12],   h: 0.36, y0: 0.14 },
+      { outer: [S + 0.14, S + 0.14, 0.22], hole: [S - 0.22, S - 0.22, 0.14], h: 0.1,  y0: 0.46 }
+    ];
+    var CENTER_Y = 0.28;
+
+    function rrect(w, h, r) {
+      var s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+      s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+      s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+      s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+      return s;
+    }
+    function shapeFor(p) {
+      var s = rrect(p.outer[0], p.outer[1], p.outer[2]);
+      if (p.hole) s.holes.push(rrect(p.hole[0], p.hole[1], p.hole[2]));
+      return s;
+    }
+
+    /* Geometry is shared by every layer */
+    var GEO = PARTS.map(function (p) {
+      var sharp = new THREE.ExtrudeGeometry(shapeFor(p), { depth: p.h, bevelEnabled: false, curveSegments: 8 });
+      sharp.rotateX(-Math.PI / 2);
+      var edges = new THREE.EdgesGeometry(sharp, 30);
+      sharp.dispose();
+      var glass = new THREE.ExtrudeGeometry(shapeFor(p), {
+        depth: p.h - 2 * BT, bevelEnabled: true, bevelThickness: BT, bevelSize: BT, bevelOffset: -BT,
+        bevelSegments: 5, curveSegments: 8
+      });
+      glass.rotateX(-Math.PI / 2); glass.translate(0, BT, 0);
+      return { edges: edges, glass: glass };
+    });
+    var glowGeo = new THREE.PlaneGeometry(2.7, 2.7); glowGeo.rotateX(-Math.PI / 2);
+    var quad = new THREE.PlaneGeometry(1, 1);
+
+    function makeTile() {
+      var group = new THREE.Group();
+      var inner = new THREE.Group(); inner.position.y = -CENTER_Y; group.add(inner);
+      var planeG = new THREE.Plane(), planeD = new THREE.Plane();
+
+      var glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xe6f0ff, metalness: 0, roughness: 0.06,
+        transmission: 1, thickness: 0.3, ior: 1.35,
+        attenuationColor: new THREE.Color(0x4f95ff), attenuationDistance: 1.4,
+        clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.2,
+        emissive: new THREE.Color(0x2a66ff), emissiveIntensity: 0.85,
+        clippingPlanes: [planeG]
+      });
+      var rimMat = new THREE.LineBasicMaterial({ color: 0xd6e8ff, transparent: true, opacity: 0.9, clippingPlanes: [planeG] });
+      var glowMat = new THREE.MeshBasicMaterial({ map: glowTex, color: 0x2a5bff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, clippingPlanes: [planeG] });
+      var wireMat = new THREE.LineBasicMaterial({ color: 0xe6f0ff, transparent: true, opacity: 0.8, depthWrite: false, clippingPlanes: [planeD] });
+
+      var glassObjs = [], wireObjs = [];
+      PARTS.forEach(function (p, i) {
+        var root = new THREE.Group(); root.position.y = p.y0; inner.add(root);
+        if (i !== 1) { /* wireframe skips the wall so each layer reads as a clean double rim plus base */
+          var wire = new THREE.LineSegments(GEO[i].edges, wireMat); root.add(wire); wireObjs.push(wire);
+        }
+        var gm = new THREE.Mesh(GEO[i].glass, glassMat); root.add(gm); glassObjs.push(gm);
+        var rl = new THREE.LineSegments(GEO[i].edges, rimMat); root.add(rl); glassObjs.push(rl);
+        if (i === 0) {
+          var glow = new THREE.Mesh(glowGeo, glowMat); glow.position.y = p.h + 0.02; root.add(glow); glassObjs.push(glow);
+        }
+      });
+
+      var scan = new THREE.Mesh(quad, new THREE.MeshBasicMaterial({ color: 0xcfe4ff, transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false }));
+      scan.renderOrder = 10; scene.add(scan);
+      var halo = new THREE.Mesh(quad, new THREE.MeshBasicMaterial({ map: glowTex, color: 0x2f62ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      scene.add(halo); halo.scale.setScalar(8);
+      scene.add(group);
+
+      return { group: group, glassObjs: glassObjs, wireObjs: wireObjs, planeG: planeG, planeD: planeD,
+               wireMat: wireMat, scan: scan, halo: halo };
+    }
+
+    var tiles = TILES.map(makeTile);
+
+    /* ----- Layout ----- */
+    var SP = 1.15;   // gap between layers in the stack (world units)
+    var GAP = 0.3;   // extra room opened around the active layer
+    var BOB = 0.035; // idle hover amplitude
+
+    function resize() {
+      var sw = stage.clientWidth || 1, sh = stage.clientHeight || 1;
+      stage.setAttribute('data-layout', sw / sh > 1.05 ? 'wide' : 'narrow');
+      var W = canvas.clientWidth || 1, H = canvas.clientHeight || 1;
+      var dpr = Math.min(window.devicePixelRatio || 1, window.matchMedia('(pointer: coarse)').matches ? 1.5 : 2);
+      renderer.setPixelRatio(dpr); renderer.setSize(W, H, false);
+      /* Fit the stack (about 6.8 world units tall, 4.4 wide) inside the canvas */
+      var ppu = Math.min(0.92 * H / 6.8, 0.8 * W / 4.4);
+      var vh = H / ppu, aspect = W / H;
+      camera.left = -vh * aspect / 2; camera.right = vh * aspect / 2; camera.top = vh / 2; camera.bottom = -vh / 2;
+      camera.updateProjectionMatrix();
+      var cur = wordEl.lastElementChild; if (cur) fitWord(cur);
+    }
+    resize();
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize', resize);
+
+    var sweep = new THREE.Vector3();
+
+    function render(roll, now) {
+      tiles.forEach(function (t, i) {
+        var d = i - roll, ad = Math.abs(d);
+        var g = 1 - sstep(0.1, 0.8, ad);       // how "active" this layer is
+        var w = sstep(0.2, 0.95, g);           // glass wipe amount
+
+        /* Layers hover in a vertical stack; the active one gets a little extra air */
+        var yy = d * SP + (d < 0 ? -1 : 1) * GAP * sstep(0, 0.7, ad);
+        var bob = reduce ? 0 : Math.sin(now * 0.0013 + i * 1.7) * BOB;
+        t.group.visible = ad < 3;
+        t.group.position.set(0, -yy + bob, 0);
+
+        /* The wipe plane sweeps up the layer along screen-vertical */
+        var ext = 1.5;
+        sweep.copy(t.group.position).addScaledVector(U, -ext + 2 * ext * w);
+        var c = U.dot(sweep);
+        t.planeG.normal.copy(U).negate(); t.planeG.constant = c;
+        t.planeD.normal.copy(U);          t.planeD.constant = -c;
+
+        var showGlass = w > 0.002 && t.group.visible, showWire = w < 0.998;
+        t.glassObjs.forEach(function (o) { o.visible = showGlass; });
+        t.wireObjs.forEach(function (o) { o.visible = showWire; });
+        t.wireMat.opacity = 0.85 - 0.85 * sstep(1.3, 2.7, ad);
+
+        var scanOn = w > 0.01 && w < 0.99 && t.group.visible;
+        t.scan.visible = scanOn;
+        if (scanOn) {
+          t.scan.position.copy(sweep); t.scan.quaternion.copy(camera.quaternion);
+          t.scan.scale.set(4.8, 0.03, 1);
+          t.scan.material.opacity = Math.sin(Math.PI * w) * 0.9;
+        }
+        t.halo.visible = g > 0.01 && t.group.visible;
+        if (t.halo.visible) {
+          t.halo.position.copy(t.group.position).addScaledVector(DIR, -3.5);
+          t.halo.quaternion.copy(camera.quaternion);
+          t.halo.material.opacity = 0.25 * g * g;
+        }
+      });
+      renderer.render(scene, camera);
+    }
+
+    return { render: render };
+  }
+
+  /* ---------- Scroll + loop ---------- */
+  var target = 0, roll = 0, active = 0, gl = null;
+
+  function onScroll() {
+    var r = roller.getBoundingClientRect();
+    var range = r.height - stage.clientHeight;
+    var p = range > 0 ? clamp(-r.top / range, 0, 1) : 0;
+    target = magnet(p * (N - 1));
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+
+  try {
+    if (!window.THREE) throw new Error('three.js did not load');
+    gl = initGL();
+  } catch (err) {
+    console.warn(err);
+    stage.classList.add('no-gl');
+  }
+
+  showCopy(0, 1);
+  onScroll();
+  roll = target;
+
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    roll = reduce ? target : roll + (target - roll) * (1 - Math.exp(-dt * 7));
+    var ai = clamp(Math.round(roll), 0, N - 1);
+    if (ai !== active) { showCopy(ai, ai > active ? 1 : -1); active = ai; }
+    if (gl) gl.render(roll, now);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>

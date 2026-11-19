@@ -1,0 +1,486 @@
+<title>Fields of Care Carousel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: the whole "Fields of care" section is pinned for six scroll steps.
+   Header and pager follow section 3 exactly (same offsets, type, dots and rolling text).
+   The glass cards sit on the inside of a cylinder with the viewer standing at its center.
+   Each card is cut into thin vertical slices so the surface itself bends, instead of tilting as one flat plane.
+   Everything here is prefixed fc- so it can sit in the same document as section 3 without collisions. */
+:root {
+  --blue: #0648e6;
+  --white: #ffffff;
+  --white-dim: rgba(255, 255, 255, .86);
+  --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --pad: max(7.6vw, 20px);
+  --fc-navy: #050a24;
+  --fc-h: clamp(1.9rem, min(4.3vw, 6.2vh), 3.4rem);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--white); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+
+.fc-roller { position: relative; height: 560vh; background: var(--fc-navy); }
+.fc-stage {
+  position: sticky; top: 0; height: 100vh; overflow: hidden; background: var(--fc-navy);
+  touch-action: pan-y; -webkit-user-select: none; user-select: none; cursor: grab;
+}
+.fc-stage.fc-dragging { cursor: grabbing; }
+/* A faint pool of section 3 blue under the carousel so the glass has something to catch */
+.fc-stage::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(60% 46% at 50% 84%, rgba(6, 72, 230, .22), rgba(6, 72, 230, 0) 72%);
+}
+
+.fc-eyebrow {
+  position: absolute; z-index: 2; top: 8.6%; margin: 0;
+  left: max(var(--pad), env(safe-area-inset-left, 0px));
+  display: flex; gap: 10px; align-items: center;
+  font-size: clamp(10px, 1.05vw, 12px); letter-spacing: .01em;
+}
+.fc-eyebrow .fc-bar { opacity: .8; }
+
+.fc-headline {
+  position: absolute; z-index: 2; top: 12.4%; margin: 0;
+  left: max(var(--pad), env(safe-area-inset-left, 0px));
+  font-weight: 300; font-size: var(--fc-h); line-height: 1.07; letter-spacing: -.012em;
+}
+.fc-sub {
+  /* sits just under the two-line headline, however tall the window is */
+  position: absolute; z-index: 2; top: calc(12.4% + var(--fc-h) * 2.14 + 10px); margin: 0; max-width: 42em;
+  left: max(var(--pad), env(safe-area-inset-left, 0px));
+  right: max(var(--pad), env(safe-area-inset-right, 0px));
+  font-weight: 300; font-size: clamp(11px, 1.2vw, 14px); line-height: 1.28; color: var(--white-dim);
+}
+.fc-sub span { display: block; max-width: 40em; }
+
+.fc-pager {
+  position: absolute; z-index: 2; top: 38.4%;
+  left: max(calc(var(--pad) + .7vw), env(safe-area-inset-left, 0px));
+  right: max(var(--pad), env(safe-area-inset-right, 0px));
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  font-size: clamp(11px, 1.15vw, 13px);
+}
+.fc-pager .fc-left { display: flex; align-items: center; gap: 14px; }
+#fc-pn { letter-spacing: .12em; min-width: 2.2em; }
+#fc-pf { justify-items: end; text-align: right; }
+.fc-dots { display: flex; gap: 2px; list-style: none; margin: 0; padding: 0; }
+.fc-dot { appearance: none; width: 20px; height: 20px; display: grid; place-items: center; background: none; border: 0; padding: 0; cursor: pointer; }
+.fc-dot::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--white); opacity: .42; transition: opacity .3s; }
+.fc-dot[aria-current="true"]::before { opacity: 1; }
+.fc-dot:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
+
+/* Rolling text (same mechanic as section 3) */
+.fc-roll { display: grid; overflow: hidden; padding-block: .14em; margin-block: -.14em; }
+.fc-roll .r { grid-area: 1 / 1; display: block; }
+
+/* Carousel: perspective sits here, the ring is the cylinder's center (the viewer's eye) */
+.fc-carousel {
+  position: absolute; z-index: 1; left: 0; right: 0; top: 43%; bottom: 6%;
+  perspective: var(--P, 1200px); perspective-origin: 50% 50%;
+}
+.fc-ring {
+  position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+  transform-style: preserve-3d; transform: translateZ(var(--P, 1200px));
+}
+.fc-card { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; visibility: hidden; cursor: pointer; }
+
+/* Soft blue halo behind the active card (section 3 does the same behind its active layer) */
+.fc-halo {
+  position: absolute; left: calc(var(--cw) * -.8); top: calc(var(--ch) * -1);
+  width: calc(var(--cw) * 1.6); height: calc(var(--ch) * 2); opacity: 0; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(47, 98, 255, .6), rgba(47, 98, 255, .2) 55%, rgba(47, 98, 255, 0) 100%);
+  transform: translateZ(calc(var(--R) * -1 - 50px));
+}
+
+/* One slice of a card. Every slice holds a full copy of the face, shifted so it shows only its own piece. */
+.fc-strip {
+  position: absolute; left: calc((var(--sw) + 1px) / -2); top: calc(var(--ch) / -2);
+  width: calc(var(--sw) + 1px); height: var(--ch); overflow: hidden; backface-visibility: hidden;
+}
+.fc-face {
+  position: absolute; top: 0; left: calc(var(--k) * var(--sw) * -1);
+  width: var(--cw); height: var(--ch); overflow: hidden; color: var(--white);
+  border-radius: clamp(10px, calc(var(--cw) * .028), 22px);
+  background:
+    linear-gradient(158deg, rgba(120, 165, 255, .12) 0%, rgba(120, 165, 255, 0) 42%),
+    linear-gradient(180deg, #111c4f 0%, #0a1239 100%);
+}
+
+/* Glass fill wipes up from the bottom as a card becomes active (the same wipe as section 3's layers) */
+.fc-glass {
+  position: absolute; inset: 0; border-radius: inherit;
+  background:
+    linear-gradient(112deg, rgba(255, 255, 255, .26) 0%, rgba(255, 255, 255, .06) 24%, rgba(255, 255, 255, 0) 42%),
+    radial-gradient(95% 130% at 50% 120%, #2a66ff 0%, #0648e6 40%, #0734b4 72%, #06277f 100%);
+  box-shadow: inset 0 0 38px rgba(120, 170, 255, .38);
+  clip-path: inset(calc((1 - var(--w, 0)) * 100%) 0 0 0);
+}
+.fc-scan {
+  position: absolute; left: 0; right: 0; bottom: calc(var(--w, 0) * 100%); height: 2px;
+  opacity: var(--scan, 0); pointer-events: none;
+  background: linear-gradient(90deg, rgba(207, 228, 255, 0), rgba(207, 228, 255, .95) 18%, rgba(207, 228, 255, .95) 82%, rgba(207, 228, 255, 0));
+  box-shadow: 0 0 16px 3px rgba(130, 175, 255, .55);
+}
+.fc-rim {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--rim, #12204f), inset 0 2px 1px -1px var(--rimhi, rgba(255, 255, 255, .1));
+}
+.fc-shade { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: var(--fc-navy); opacity: var(--shade, 0); }
+
+.fc-inner {
+  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between;
+  padding: clamp(16px, calc(var(--cw) * .04), 32px);
+}
+.fc-count { font-size: clamp(10px, calc(var(--cw) * .0155), 12.5px); letter-spacing: .14em; color: var(--white-dim); }
+.fc-title { font-weight: 400; font-size: clamp(22px, calc(var(--cw) * .052), 42px); line-height: 1.03; letter-spacing: -.025em; max-width: 20em; text-wrap: balance; }
+.fc-desc { margin-top: calc(var(--cw) * .014); font-size: clamp(11px, calc(var(--cw) * .0195), 15px); line-height: 1.28; color: var(--white-dim); max-width: 17.5em; }
+.fc-explore {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  margin-top: calc(var(--cw) * .026); font-size: clamp(11px, calc(var(--cw) * .0165), 13.5px); font-weight: 500;
+}
+.fc-arrow { flex: none; width: 1.3em; height: 1.3em; transition: transform .35s cubic-bezier(.7, 0, .2, 1); }
+.fc-card.fc-active:hover .fc-arrow { transform: translateX(5px); }
+.fc-card.fc-focus .fc-explore { outline: 2px solid var(--white); outline-offset: 5px; border-radius: 3px; }
+
+/* Real, focusable copy for screen readers and keyboards (the sliced cards are visual only) */
+.fc-sr {
+  position: fixed; top: 0; left: 0; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; list-style: none;
+}
+
+/* Narrow screens */
+.fc-stage[data-layout="narrow"] .fc-eyebrow { top: 6%; }
+.fc-stage[data-layout="narrow"] .fc-headline { top: 9%; font-size: clamp(1.5rem, 6.6vw, 2.2rem); right: max(var(--pad), env(safe-area-inset-right, 0px)); }
+.fc-stage[data-layout="narrow"] #fc-pf { display: none; }
+.fc-stage[data-layout="narrow"] .fc-br { display: none; }
+.fc-stage[data-layout="narrow"] .fc-sub { top: 23.5%; }
+.fc-stage[data-layout="narrow"] .fc-pager { top: 35%; }
+.fc-stage[data-layout="narrow"] .fc-carousel { top: 41%; bottom: 5%; }
+</style>
+
+<main class="fc-roller" id="fc-roller">
+  <section class="fc-stage" id="fc-stage" data-layout="wide" aria-label="Fields of care">
+    <p class="fc-eyebrow"><span>&Oslash;4</span><span class="fc-bar">|</span><span>Fields of care</span></p>
+    <h2 class="fc-headline">Built for every field where a<br class="fc-br"> health decision carries weight.</h2>
+    <p class="fc-sub"><span>From elite sport to public institutions, Unify is the foundation for environments where a record is not just information. It is readiness, safety and trust.</span></p>
+
+    <div class="fc-pager">
+      <div class="fc-left">
+        <div class="fc-roll" id="fc-pn" aria-hidden="true"></div>
+        <ol class="fc-dots" id="fc-dots"></ol>
+      </div>
+      <div class="fc-roll" id="fc-pf" aria-hidden="true"></div>
+    </div>
+
+    <div class="fc-carousel" id="fc-carousel" aria-hidden="true">
+      <div class="fc-ring" id="fc-ring"></div>
+    </div>
+
+    <ul class="fc-sr" id="fc-sr"></ul>
+    <div class="fc-sr" id="fc-live" aria-live="polite"></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Content ---------- */
+  /* href is a placeholder on every card. Swap in real destinations when they exist. */
+  var TILES = [
+    { title: 'Sport', body: 'Collegiate and professional programs where availability depends on a complete history.', explore: 'Explore sport', href: '#' },
+    { title: 'Public safety and corrections', body: 'Intake and custody settings where minutes matter and self-report is not enough.', explore: 'Explore public safety and corrections', href: '#' },
+    { title: 'Legal', body: 'Matters where a complete, verifiable record is the evidence.', explore: 'Explore legal', href: '#' },
+    { title: 'Student health', body: 'Campus care that follows students through enrollment, transfer and graduation.', explore: 'Explore student health', href: '#' },
+    { title: 'Physical therapy and rehabilitation', body: 'Recovery that spans providers, facilities and seasons.', explore: 'Explore physical therapy and rehabilitation', href: '#' },
+    { title: 'Military and first responders', body: 'Service where readiness is a medical question as much as a physical one.', explore: 'Explore military and first responders', href: '#' }
+  ];
+  var N = TILES.length;
+  var NS = 10;      // slices per card: more slices, smoother curve
+  var GAP = 0.03;   // extra angle between neighboring cards, in radians
+
+  /* ---------- Helpers ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var clamp = function (x, a, b) { return Math.min(b, Math.max(a, x)); };
+  var sstep = function (a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var stage = $('fc-stage'), roller = $('fc-roller'), carousel = $('fc-carousel'), ring = $('fc-ring');
+
+  /* Pull the roll toward whole numbers so it rarely rests between two cards (same as section 3) */
+  function magnet(x) {
+    var n = Math.round(x), f = x - n;
+    return n + (f < 0 ? -1 : 1) * 0.5 * Math.pow(Math.abs(f) * 2, 1.6);
+  }
+
+  /* ---------- Rolling text ---------- */
+  function swap(el, text, dir, delay, dur) {
+    var kids = el.children;
+    while (kids.length > 1) kids[0].remove();
+    var old = kids[0] || null;
+    var nu = document.createElement('span'); nu.className = 'r'; nu.textContent = text;
+    el.appendChild(nu);
+    if (!old) return;
+    old.setAttribute('aria-hidden', 'true');
+    if (reduce || !nu.animate) { old.remove(); return; }
+    var opt = { duration: dur, delay: delay, easing: 'cubic-bezier(.7,0,.2,1)', fill: 'both' };
+    nu.animate([{ transform: 'translateY(' + (dir > 0 ? '115%' : '-115%') + ')' }, { transform: 'translateY(0)' }], opt);
+    var out = old.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(' + (dir > 0 ? '-115%' : '115%') + ')' }], opt);
+    out.onfinish = function () { old.remove(); };
+  }
+
+  /* ---------- Build the cards ---------- */
+  var ARROW = '<svg class="fc-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5"/></svg>';
+
+  function faceHTML(t, i) {
+    return '<div class="fc-face">' +
+      '<div class="fc-glass"></div>' +
+      '<div class="fc-scan"></div>' +
+      '<div class="fc-rim"></div>' +
+      '<div class="fc-inner">' +
+        '<span class="fc-count">' + (i + 1) + ' OF ' + N + '</span>' +
+        '<div class="fc-bottom">' +
+          '<div class="fc-title">' + t.title + '</div>' +
+          '<div class="fc-desc">' + t.body + '</div>' +
+          '<div class="fc-explore"><span>' + t.explore + '</span>' + ARROW + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="fc-shade"></div>' +
+    '</div>';
+  }
+
+  var cards = TILES.map(function (t, i) {
+    var group = document.createElement('div');
+    group.className = 'fc-card';
+    group.setAttribute('data-i', i);
+    var halo = document.createElement('div'); halo.className = 'fc-halo'; group.appendChild(halo);
+    var html = faceHTML(t, i), strips = [];
+    for (var k = 0; k < NS; k++) {
+      var s = document.createElement('div');
+      s.className = 'fc-strip';
+      s.style.setProperty('--k', k);
+      s.innerHTML = html;
+      group.appendChild(s); strips.push(s);
+    }
+    ring.appendChild(group);
+    return { el: group, halo: halo, strips: strips, vis: false, last: {} };
+  });
+
+  /* Accessible copy: real headings and links, kept off screen */
+  var srEl = $('fc-sr'), liveEl = $('fc-live');
+  function open(i) { var h = TILES[i].href; if (h && h !== '#') window.location.href = h; }
+  TILES.forEach(function (t, i) {
+    var li = document.createElement('li');
+    var h = document.createElement('h3'); h.textContent = t.title;
+    var p = document.createElement('p'); p.textContent = t.body;
+    var a = document.createElement('a'); a.href = t.href; a.textContent = t.explore;
+    a.addEventListener('focus', function () { cards[i].el.classList.add('fc-focus'); goTo(i); });
+    a.addEventListener('blur', function () { cards[i].el.classList.remove('fc-focus'); });
+    a.addEventListener('click', function (e) { if (t.href === '#') e.preventDefault(); open(i); });
+    li.appendChild(h); li.appendChild(p); li.appendChild(a); srEl.appendChild(li);
+  });
+
+  /* Pager */
+  var dotsEl = $('fc-dots');
+  var dots = TILES.map(function (t, i) {
+    var li = document.createElement('li');
+    var b = document.createElement('button');
+    b.className = 'fc-dot'; b.type = 'button';
+    b.setAttribute('aria-label', 'Go to ' + t.title);
+    b.addEventListener('click', function () { goTo(i); });
+    li.appendChild(b); dotsEl.appendChild(li);
+    return b;
+  });
+
+  var active = 0;
+  function showCopy(i, dir) {
+    var t = TILES[i];
+    swap($('fc-pn'), '\u00D8' + (i + 1), dir, 0, 550);
+    swap($('fc-pf'), t.title, dir, 60, 650);
+    dots.forEach(function (b, k) { b.setAttribute('aria-current', k === i ? 'true' : 'false'); });
+    cards.forEach(function (c, k) { c.el.classList.toggle('fc-active', k === i); });
+    liveEl.textContent = t.title + ', ' + (i + 1) + ' of ' + N;
+  }
+
+  /* ---------- Geometry ---------- */
+  /* The viewer stands at the center of a cylinder of radius R. The front card sits exactly on the screen plane
+     (R equals the CSS perspective distance), so it renders at true size and stays crisp. */
+  var geo = { R: 1000, step: 0.7, vis: 1.4, pitch: 700 };
+
+  function layout() {
+    var sw = stage.clientWidth || 1, sh = stage.clientHeight || 1;
+    var narrow = sw / sh <= 1.05;
+    stage.setAttribute('data-layout', narrow ? 'narrow' : 'wide');
+    var areaH = carousel.clientHeight || 1;
+    var W, H, K;
+    if (narrow) { W = clamp(sw * 0.74, 240, 520); H = clamp(W * 1.02, 230, areaH); K = 1.25; }
+    else        { W = clamp(sw * 0.5, 320, 800);  H = clamp(W / 1.9, 200, areaH);  K = 1.6; }
+    var R = W * K, alpha = W / R, step = alpha + GAP, fov = Math.atan2(sw / 2, R);
+    geo = { R: R, step: step, vis: (fov + alpha / 2 + 0.08) / step, pitch: R * step };
+
+    carousel.style.setProperty('--cw', W.toFixed(2) + 'px');
+    carousel.style.setProperty('--ch', H.toFixed(2) + 'px');
+    carousel.style.setProperty('--R', R.toFixed(2) + 'px');
+    carousel.style.setProperty('--P', R.toFixed(2) + 'px');
+    carousel.style.setProperty('--sw', (W / NS).toFixed(3) + 'px');
+
+    var delta = (W / NS) / R;
+    cards.forEach(function (c) {
+      c.strips.forEach(function (s, k) {
+        s.style.transform = 'rotateY(' + (((NS - 1) / 2 - k) * delta).toFixed(5) + 'rad) translateZ(' + (-R).toFixed(2) + 'px)';
+      });
+    });
+  }
+
+  function mixRim(m) {
+    var a = [18, 30, 80], b = [214, 232, 255];
+    return 'rgb(' + a.map(function (v, k) { return Math.round(v + (b[k] - v) * m); }).join(',') + ')';
+  }
+  function setVar(c, name, val) { if (c.last[name] !== val) { c.last[name] = val; c.el.style.setProperty(name, val); } }
+
+  function render(roll, now) {
+    for (var i = 0; i < N; i++) {
+      var c = cards[i], d = i - roll, ad = Math.abs(d);
+      if (ad > geo.vis) {
+        if (c.vis) { c.el.style.visibility = 'hidden'; c.vis = false; }
+        continue;
+      }
+      if (!c.vis) { c.el.style.visibility = 'visible'; c.vis = true; }
+
+      var g = 1 - sstep(0.1, 0.8, ad);   // how "active" this card is
+      var w = sstep(0.2, 0.95, g);       // glass wipe amount
+      var th = -d * geo.step;            // angle around the cylinder
+      var push = geo.R * 0.1 * Math.min(ad, 1.3);   // neighbors sit slightly farther out, which calms the edge stretch
+      var bob = reduce ? 0 : Math.sin(now * 0.0013 + i * 1.7) * 3;
+      c.el.style.transform = 'translate3d(0,' + bob.toFixed(2) + 'px,0) rotateY(' + th.toFixed(5) + 'rad) translateZ(' + (-push).toFixed(2) + 'px)';
+
+      var scan = (w > 0.01 && w < 0.99) ? Math.sin(Math.PI * w) * 0.9 : 0;
+      setVar(c, '--w', w.toFixed(3));
+      setVar(c, '--scan', scan.toFixed(3));
+      setVar(c, '--shade', (0.6 * sstep(0.3, 1.2, ad)).toFixed(3));
+      setVar(c, '--rim', mixRim(0.28 + 0.62 * g));
+      setVar(c, '--rimhi', 'rgba(255,255,255,' + (0.1 + 0.5 * g).toFixed(3) + ')');
+      var ho = (0.95 * g * g).toFixed(3);
+      if (c.last.halo !== ho) { c.last.halo = ho; c.halo.style.opacity = ho; }
+    }
+  }
+
+  /* ---------- Scroll mapping ---------- */
+  function range() { return roller.offsetHeight - stage.clientHeight; }
+  function perRoll() { return range() / (N - 1); }          // page pixels per card
+  function rawRoll() {
+    var r = roller.getBoundingClientRect(), rg = r.height - stage.clientHeight;
+    return rg > 0 ? clamp(-r.top / rg, 0, 1) * (N - 1) : 0;
+  }
+  function goTo(i) {
+    var top = roller.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: top + perRoll() * clamp(i, 0, N - 1), behavior: reduce ? 'auto' : 'smooth' });
+  }
+
+  var target = 0, roll = 0;
+  function onScroll() { target = magnet(rawRoll()); scheduleSnap(); }
+
+  /* Settle on the nearest card shortly after scrolling stops */
+  var snapTimer = 0, fingers = 0, drag = null;
+  function scheduleSnap() { clearTimeout(snapTimer); snapTimer = setTimeout(snapNow, 160); }
+  function snapNow() {
+    if (fingers || (drag && drag.active)) return;
+    var r = roller.getBoundingClientRect(), rg = r.height - stage.clientHeight;
+    if (rg <= 0 || r.top >= 0 || r.top <= -rg) return;      // only while pinned
+    var f = (-r.top / rg) * (N - 1), i = clamp(Math.round(f), 0, N - 1);
+    if (Math.abs(f - i) > 0.004) goTo(i);
+  }
+  function trackTouch(e) { fingers = e.touches.length; if (!fingers) scheduleSnap(); }
+  window.addEventListener('touchstart', trackTouch, { passive: true });
+  window.addEventListener('touchend', trackTouch, { passive: true });
+  window.addEventListener('touchcancel', trackTouch, { passive: true });
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+
+  /* ---------- Drag and swipe ---------- */
+  /* Dragging scrolls the page, so scroll stays the single source of truth for the carousel. */
+  var suppressClick = false;
+  stage.addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('.fc-dot')) return;
+    drag = { id: e.pointerId, lastX: e.clientX, moved: 0, active: false, samples: [{ x: e.clientX, t: e.timeStamp }] };
+  });
+  stage.addEventListener('pointermove', function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    var dx = e.clientX - drag.lastX; drag.lastX = e.clientX; drag.moved += Math.abs(dx);
+    if (!drag.active) {
+      if (drag.moved < 6) return;
+      drag.active = true; stage.classList.add('fc-dragging');
+      try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    window.scrollBy({ top: -dx * perRoll() / geo.pitch, behavior: 'instant' });
+    drag.samples.push({ x: e.clientX, t: e.timeStamp });
+    while (drag.samples.length > 2 && e.timeStamp - drag.samples[0].t > 100) drag.samples.shift();
+  });
+  function endDrag(e, cancelled) {
+    if (!drag || e.pointerId !== drag.id) return;
+    var d = drag; drag = null; stage.classList.remove('fc-dragging');
+    if (!d.active) return;
+    suppressClick = true; setTimeout(function () { suppressClick = false; }, 0);
+    if (cancelled) { scheduleSnap(); return; }
+    var a = d.samples[0], b = d.samples[d.samples.length - 1], dt = b.t - a.t;
+    var v = dt > 0 ? (b.x - a.x) / dt : 0;                  // pixels per millisecond
+    var s = rawRoll(), i;
+    if (Math.abs(v) > 0.35) i = v < 0 ? Math.floor(s + 0.02) + 1 : Math.ceil(s - 0.02) - 1;   // a flick always moves one card
+    else i = Math.round(s);
+    goTo(i);
+  }
+  stage.addEventListener('pointerup', function (e) { endDrag(e, false); });
+  stage.addEventListener('pointercancel', function (e) { endDrag(e, true); });
+  stage.addEventListener('click', function (e) { if (suppressClick) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+  /* Trackpad sideways swipes */
+  stage.addEventListener('wheel', function (e) {
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+    e.preventDefault();
+    var dx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX;
+    window.scrollBy({ top: dx * perRoll() / geo.pitch, behavior: 'instant' });
+  }, { passive: false });
+
+  /* Clicking a side card brings it to the front; clicking the front card's link follows it */
+  ring.addEventListener('click', function (e) {
+    var card = e.target.closest('.fc-card'); if (!card) return;
+    var i = +card.getAttribute('data-i');
+    if (i !== active) { goTo(i); return; }
+    if (e.target.closest('.fc-explore')) open(i);
+  });
+
+  /* Arrow keys while the section is pinned */
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    var tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+    var r = roller.getBoundingClientRect();
+    if (r.top > 1 || r.bottom < window.innerHeight - 1) return;
+    e.preventDefault();
+    goTo(active + (e.key === 'ArrowRight' ? 1 : -1));
+  });
+
+  /* ---------- Go ---------- */
+  layout();
+  if (window.ResizeObserver) new ResizeObserver(function () { layout(); onScroll(); }).observe(stage);
+  else window.addEventListener('resize', layout);
+
+  showCopy(0, 1);
+  onScroll();
+  roll = target;
+
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    roll = reduce ? target : roll + (target - roll) * (1 - Math.exp(-dt * 7));
+    var ai = clamp(Math.round(roll), 0, N - 1);
+    if (ai !== active) { showCopy(ai, ai > active ? 1 : -1); active = ai; }
+    render(roll, now);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>

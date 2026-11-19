@@ -1,0 +1,510 @@
+<title>The Problem Section</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one pinned stage in the "problem" section's ink navy. Copy sits at the top, the glass folder travels left to right
+   in the open middle above a thin timeline (Transfer, Outside care, New system), and four lines load in along the bottom
+   as the folder passes through. */
+:root {
+  --bg: #050923;
+  --white: #ffffff;
+  --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --pad: max(6vw, 20px);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--white); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+
+.roller { position: relative; height: 340vh; }
+.stage { position: sticky; top: 0; height: 100vh; min-height: 560px; overflow: hidden; background: var(--bg); }
+
+/* The folder's canvas sits only in the open middle; its top and bottom edges fade so the pixels never hit the copy */
+#gl { position: absolute; left: 0; right: 0; top: 40%; bottom: 24%; width: 100%; height: 36%; display: block;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14%, #000 82%, transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 14%, #000 82%, transparent 100%); }
+
+.head { position: absolute; z-index: 3; left: 0; right: 0; top: 10.5%; text-align: center;
+  padding: 0 max(16px, env(safe-area-inset-left, 0px)) 0 max(16px, env(safe-area-inset-right, 0px)); }
+.eyebrow { margin: 0; font-size: clamp(11px, .95vw, 14px); letter-spacing: .01em; }
+.eyebrow span { opacity: .55; padding: 0 .55em; }
+h2 { margin: clamp(22px, 4.6vh, 44px) auto 0; max-width: 14em; font-weight: 500; font-size: clamp(32px, 4.3vw, 76px); line-height: 1.04; letter-spacing: -.025em; text-wrap: balance; }
+.sub { margin: clamp(18px, 3.4vh, 34px) auto 0; max-width: 36em; font-size: clamp(13px, 1.05vw, 18px); line-height: 1.35; font-weight: 300; opacity: .92; text-wrap: balance; }
+
+.track { position: absolute; z-index: 2; top: 77%; height: 1px; background: rgba(255, 255, 255, .45);
+  left: max(var(--pad), env(safe-area-inset-left, 0px)); right: max(var(--pad), env(safe-area-inset-right, 0px)); }
+.mark { position: absolute; top: -4px; left: 0; width: 9px; height: 9px; margin-left: -4px; background: var(--white); }
+
+.stops { position: absolute; z-index: 2; inset: 0; margin: 0; padding: 0; list-style: none; pointer-events: none; }
+.stop { position: absolute; top: 77%; transform: translateX(-50%); display: flex; align-items: baseline; gap: .7em; padding-top: 16px; white-space: nowrap; transition: opacity .35s; }
+.stop::before { content: ""; position: absolute; top: -6px; left: 50%; width: 1px; height: 13px; background: var(--white); }
+.stop .n { font: 500 clamp(9px, .8vw, 11px)/1 var(--mono); letter-spacing: .08em; opacity: .7; }
+.stop b { font-weight: 500; font-size: clamp(12px, 1.15vw, 17px); letter-spacing: -.005em; }
+.stop[data-on="false"] { opacity: .5; }
+
+/* The four lines that load in as the folder passes */
+.says { position: absolute; z-index: 3; left: 0; right: 0; bottom: 6.5%; margin: 0; padding: 0 var(--pad); list-style: none;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: .45em clamp(22px, 3.4vw, 56px); font-size: clamp(14px, 1.6vw, 24px); letter-spacing: -.01em; line-height: 1.2; }
+.says li { opacity: 0; transform: translateY(14px); filter: blur(5px); transition: opacity .6s cubic-bezier(.2, .7, .2, 1), transform .6s cubic-bezier(.2, .7, .2, 1), filter .6s cubic-bezier(.2, .7, .2, 1); }
+.says li[data-on="true"] { opacity: 1; transform: none; filter: none; }
+.reduce .says li { transition: none; }
+
+.nogl { display: none; position: absolute; z-index: 2; left: 50%; top: 52%; transform: translateX(-50%); width: min(80vw, 360px); padding: 16px; border: 1px solid var(--white); font-size: 12px; line-height: 1.4; }
+.no-gl .nogl { display: block; }
+
+.stage[data-layout="narrow"] .says { gap: .5em 22px; bottom: 5%; font-size: 14px; }
+.stage[data-layout="narrow"] .stop { flex-direction: column; align-items: center; gap: 6px; }
+.stage[data-layout="narrow"] .stop b { font-size: 12px; }
+.stage[data-layout="narrow"] #gl { top: 44%; height: 33%; bottom: 23%; }
+</style>
+
+<main class="roller" id="roller">
+  <section class="stage" id="stage" data-layout="wide" aria-label="A record breaking apart as it moves between systems">
+    <div class="head">
+      <p class="eyebrow">Ø2<span>|</span>The problem</p>
+      <h2>Health data fragments when people move.</h2>
+      <p class="sub">Athletes, students, service members, people in custody and other transient patients receive care across teams, programs, units, providers and locations. When a transition happens, health history does not follow automatically.</p>
+    </div>
+    <canvas id="gl" aria-hidden="true"></canvas>
+    <div class="track" id="track" aria-hidden="true"><span class="mark" id="mark"></span></div>
+    <ol class="stops" id="stops" aria-hidden="true"></ol>
+    <ul class="says" id="says"></ul>
+    <p class="nogl">WebGL is not available in this browser, so the folder can't draw. The timeline and lines still tell the story.</p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Content ---------- */
+  var STOPS = [
+    { n: '\u00D81', name: 'Transfer' },
+    { n: '\u00D82', name: 'Outside care' },
+    { n: '\u00D83', name: 'New system' }
+  ];
+  /* Each line loads in once the folder has travelled this far (0 = Transfer, 1 = New system) */
+  var SAYS = [
+    { t: 'Records are requested.',               at: 0.12 },
+    { t: 'Context is rebuilt.',                  at: 0.42 },
+    { t: 'Time is lost.',                        at: 0.66 },
+    { t: 'Continuity becomes a manual workflow', at: 0.9 }
+  ];
+
+  /* ---------- Helpers ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var clamp = function (x, a, b) { return Math.min(b, Math.max(a, x)); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var stage = $('stage'), roller = $('roller'), canvas = $('gl');
+
+  /* Pull the travel toward the three stops so the folder rarely rests between them */
+  function magnet(x) {
+    var n = Math.round(x), f = x - n;
+    return n + (f < 0 ? -1 : 1) * 0.5 * Math.pow(Math.abs(f) * 2, 1.6);
+  }
+
+  /* ---------- Stops ---------- */
+  var stopEls = STOPS.map(function (s) {
+    var li = document.createElement('li'); li.className = 'stop'; li.setAttribute('data-on', 'false');
+    li.innerHTML = '<span class="n"></span><b></b>';
+    li.children[0].textContent = s.n; li.children[1].textContent = s.name;
+    $('stops').appendChild(li);
+    return li;
+  });
+
+  /* ---------- Lines that load in ---------- */
+  var saysEls = SAYS.map(function (d) {
+    var li = document.createElement('li'); li.textContent = d.t; li.setAttribute('data-on', 'false');
+    $('says').appendChild(li); return li;
+  });
+  if (reduce) stage.classList.add('reduce');
+
+  /* ---------- 3D ---------- */
+  function initGL() {
+    var THREE = window.THREE;
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.NoToneMapping;
+
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050923); // matches --bg
+
+    /* Camera: orthographic, same near-isometric angle as the tiles. R = screen right, U = screen up, in world space. */
+    var DIR = new THREE.Vector3(1, 0.85, 1).normalize();
+    var camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+    camera.position.copy(DIR).multiplyScalar(30);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    var R = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    var U = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+
+    /* ----- The dissolve field -----
+       One function decides, for any point in the folder's own space, WHEN it breaks away (0 = first, 1 = last).
+       Top, right and back go first, with blocky noise on a ~0.11 unit grid. The lines, the fills and the
+       particles all call this same function, so they break apart in step. */
+    var FIELD = [
+      'float hash13(vec3 p){ p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }',
+      'float field(vec3 l){',
+      '  vec3 n = clamp((l + vec3(1.6, 0.0, 0.55)) / vec3(3.2, 2.4, 1.1), 0.0, 1.0);',
+      '  float fb = 1.0 - (0.55 * n.y + 0.30 * n.x + 0.15 * n.z);',
+      '  float h = hash13(floor(l * 9.0));',
+      '  return 0.74 * fb + 0.26 * h;',
+      '}'
+    ].join('\n');
+
+    var K = 0.74;               // how much of the folder has broken away by the last stop
+    var uQ = { value: 0 };      // the dissolve front, = K * travel
+
+    /* Lets the glass drop away on the same field, with a bright edge where it breaks */
+    function dissolveGlass(mat) {
+      mat.onBeforeCompile = function (sh) {
+        sh.uniforms.uQ = uQ;
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vLoc;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLoc = position;');
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vLoc;\nuniform float uQ;\n' + FIELD)
+          .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nfloat fq = field(vLoc) - uQ;\nif (fq < 0.0) discard;')
+          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(0.7, 0.86, 1.0) * (1.0 - smoothstep(0.0, 0.05, fq)) * step(0.001, uQ) * 1.6;');
+      };
+      mat.customProgramCacheKey = function () { return 'dissolveGlass'; };
+    }
+
+    /* Environment: a procedural studio of softboxes so the glass has something to reflect (same as the tiles) */
+    var pmrem = new THREE.PMREMGenerator(renderer);
+    (function () {
+      var sc = new THREE.Scene();
+      sc.background = new THREE.Color(0x050a24);
+      var add = function (w, h, pos, col, k) {
+        var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(k), side: THREE.DoubleSide }));
+        m.position.set(pos[0], pos[1], pos[2]); m.lookAt(0, 0, 0); sc.add(m);
+      };
+      add(14, 14, [0, 9, 0], 0xffffff, 2.2);
+      add(3, 12, [-9, 3, 2], 0xffffff, 7);
+      add(3, 12, [9, 2, -3], 0xcfe0ff, 5);
+      add(10, 2.5, [0, 1, -10], 0xffffff, 6);
+      add(10, 2, [0, 0, 10], 0x9ec0ff, 3);
+      add(12, 12, [0, -9, 0], 0x2a55ff, 2.5);
+      scene.environment = pmrem.fromScene(sc, 0.03).texture;
+    })();
+    var key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(-4, 6, 3); scene.add(key);
+    var rimLight = new THREE.DirectionalLight(0x6f98ff, 1.4); rimLight.position.set(5, 2, -4); scene.add(rimLight);
+
+    var glowTex = (function () {
+      var c = document.createElement('canvas'); c.width = c.height = 256;
+      var g = c.getContext('2d');
+      var grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.45, 'rgba(255,255,255,.35)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad; g.fillRect(0, 0, 256, 256);
+      var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+
+    /* ----- The drawing, built from lit blue glass like the tiles -----
+       Folder-local space: x width 3.2, y up, z depth 1.1 (a slim folder), origin at the middle of the floor top.
+       Floor slab, back panel with a tab, four paper sheets and a low front panel. Each piece is a bevelled glass slab
+       with pale rim lines. As the folder travels the glass drops away (leaving the see-through line drawing, like the
+       inactive tiles) and the lines then break into square pixels. */
+    function rrect(w, h, r) {
+      var s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+      s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+      s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+      s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+      return s;
+    }
+    function tabPanel() {
+      var s = new THREE.Shape();
+      s.moveTo(-1.5, 0); s.lineTo(1.5, 0); s.quadraticCurveTo(1.6, 0, 1.6, 0.1);
+      s.lineTo(1.6, 1.9); s.quadraticCurveTo(1.6, 2.0, 1.5, 2.0);
+      s.lineTo(0.05, 2.0); s.lineTo(-0.1, 2.22); s.lineTo(-1.45, 2.22);
+      s.quadraticCurveTo(-1.6, 2.22, -1.6, 2.1); s.lineTo(-1.6, 0.1); s.quadraticCurveTo(-1.6, 0, -1.5, 0);
+      return s;
+    }
+    function rng32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+    var rnd = rng32(20261119);
+
+    var BT = 0.016;  // glass bevel, inset so the rim lines never fight with the glass surface
+    function slab(shape, d, pos, flat) {
+      var bt = Math.min(BT, d * 0.3);
+      var sharp = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false, curveSegments: 6 });
+      sharp.translate(0, 0, -d / 2);
+      var glass = new THREE.ExtrudeGeometry(shape, {
+        depth: d - 2 * bt, bevelEnabled: true, bevelThickness: bt, bevelSize: bt, bevelOffset: -bt, bevelSegments: 4, curveSegments: 6
+      });
+      glass.translate(0, 0, -(d / 2 - bt));
+      if (flat) { sharp.rotateX(-Math.PI / 2); glass.rotateX(-Math.PI / 2); }
+      sharp.translate(pos[0], pos[1], pos[2]); glass.translate(pos[0], pos[1], pos[2]);
+      var edges = new THREE.EdgesGeometry(sharp, 30); sharp.dispose();
+      return { glass: glass, edges: edges };
+    }
+
+    var segs = [];   // [x1,y1,z1, x2,y2,z2, brightness]
+    var seg = function (a, b, br) { segs.push([a[0], a[1], a[2], b[0], b[1], b[2], br]); };
+    var loop = function (pts, map, br) { for (var i = 0; i < pts.length; i++) seg(map(pts[i]), map(pts[(i + 1) % pts.length]), br); };
+    var ZB = -0.55, ZF = 0.55, FH = 1.1;
+
+    var folder = new THREE.Group();
+    function addSlab(sl, mat, br) {
+      var m = new THREE.Mesh(sl.glass, mat); folder.add(m);
+      var p = sl.edges.attributes.position.array;
+      for (var i = 0; i < p.length; i += 6) segs.push([p[i], p[i + 1], p[i + 2], p[i + 3], p[i + 4], p[i + 5], br]);
+    }
+
+    /* Glass: the panels are deep blue like the active tile; the paper sheets are paler so they read against them */
+    var glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xe6f0ff, metalness: 0, roughness: 0.06, transmission: 1, thickness: 0.3, ior: 1.35,
+      attenuationColor: new THREE.Color(0x4f95ff), attenuationDistance: 1.4,
+      clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.2,
+      emissive: new THREE.Color(0x2a66ff), emissiveIntensity: 0.85
+    });
+    var sheetMat = new THREE.MeshPhysicalMaterial({
+      color: 0xf2f7ff, metalness: 0, roughness: 0.05, transmission: 1, thickness: 0.2, ior: 1.3,
+      attenuationColor: new THREE.Color(0xa8cbff), attenuationDistance: 2.2,
+      clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 2.4,
+      emissive: new THREE.Color(0x7aa6ff), emissiveIntensity: 0.9
+    });
+    dissolveGlass(glassMat); dissolveGlass(sheetMat);
+
+    addSlab(slab(rrect(3.2, 1.1, 0.1), 0.1, [0, -0.05, 0], true), glassMat, 1);          // floor
+    addSlab(slab(tabPanel(), 0.1, [0, 0, ZB]), glassMat, 1);                              // back panel with tab
+
+    /* Four paper sheets, stepped so each one peeks out behind the next. Only the front one carries content. */
+    var sheets = [];
+    var SH = [{ z: -0.30, h: 1.92 }, { z: -0.14, h: 1.85 }, { z: 0.02, h: 1.78 }, { z: 0.18, h: 1.71 }];
+    var SHT = 0.045;
+    SH.forEach(function (d, si) {
+      var w = 2.84, y0 = 0.12, front = si === SH.length - 1;
+      addSlab(slab(rrect(w, d.h, 0.08), SHT, [0, y0 + d.h / 2, d.z]), sheetMat, 0.9 + 0.1 * (si / (SH.length - 1)));
+      sheets.push({ z: d.z, w: w, h: d.h, y0: y0 });
+      if (front) {
+        var zc = d.z + SHT / 2 + 0.004, br = 1;
+        var at = function (x, y) { return [x, y0 + y, zc]; };
+        var left = -w / 2 + 0.24, right = w / 2 - 0.24, top = d.h - 0.22;
+        seg(at(left, top), at(left + 0.9, top), br);                                    // title
+        var bx = right - 0.2, by = top - 0.16;                                            // small box, top right
+        loop([{ x: bx, y: by }, { x: bx + 0.2, y: by }, { x: bx + 0.2, y: by + 0.2 }, { x: bx, y: by + 0.2 }], function (p) { return at(p.x, p.y); }, br);
+        var rows = [[0.40, 1.0], [0.60, 0.86], [0.80, 0.94], [1.00, 0.55]];
+        rows.forEach(function (r) { seg(at(left, top - r[0]), at(left + (right - left) * r[1], top - r[0]), br); });
+      }
+    });
+
+    addSlab(slab(rrect(3.2, FH, 0.1), 0.1, [0, FH / 2, ZF]), glassMat, 1);               // low front panel
+    seg([-1.6, FH, ZF], [-1.6, FH, ZB], 1); seg([1.6, FH, ZF], [1.6, FH, ZB], 1);         // side top edges
+
+    /* Soft glow on the floor, like the lit tiles */
+    var glowGeo = new THREE.PlaneGeometry(3.3, 1.5); glowGeo.rotateX(-Math.PI / 2);
+    var glowMat = new THREE.MeshBasicMaterial({ map: glowTex, color: 0x2a5bff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    var glow = new THREE.Mesh(glowGeo, glowMat); glow.position.set(0, 0.03, 0); folder.add(glow);
+    var halo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTex, color: 0x2f62ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    halo.scale.setScalar(9); scene.add(halo);
+
+    /* Crisp lines: each segment is a screen-space quad of fixed pixel width, so line weight is even everywhere */
+    var nS = segs.length;
+    var aA = new Float32Array(nS * 12), aB = new Float32Array(nS * 12), aTS = new Float32Array(nS * 8), aCol = new Float32Array(nS * 12);
+    var idx = new Uint32Array(nS * 6), total = 0, lens = [];
+    segs.forEach(function (s, i) {
+      for (var v = 0; v < 4; v++) {
+        var o3 = (i * 4 + v) * 3, o2 = (i * 4 + v) * 2;
+        aA[o3] = s[0]; aA[o3 + 1] = s[1]; aA[o3 + 2] = s[2];
+        aB[o3] = s[3]; aB[o3 + 1] = s[4]; aB[o3 + 2] = s[5];
+        aTS[o2] = v >> 1; aTS[o2 + 1] = (v & 1) ? 1 : -1;
+        aCol[o3] = s[6] * 0.84; aCol[o3 + 1] = s[6] * 0.91; aCol[o3 + 2] = s[6];
+      }
+      var b = i * 4; idx.set([b, b + 1, b + 2, b + 2, b + 1, b + 3], i * 6);
+      total += Math.hypot(s[3] - s[0], s[4] - s[1], s[5] - s[2]); lens.push(total);
+    });
+    var lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute('position', new THREE.BufferAttribute(aA, 3));
+    lineGeo.setAttribute('aA', new THREE.BufferAttribute(aA, 3));
+    lineGeo.setAttribute('aB', new THREE.BufferAttribute(aB, 3));
+    lineGeo.setAttribute('aTS', new THREE.BufferAttribute(aTS, 2));
+    lineGeo.setAttribute('aCol', new THREE.BufferAttribute(aCol, 3));
+    lineGeo.setIndex(new THREE.BufferAttribute(idx, 1));
+
+    var lU = { uRes: { value: new THREE.Vector2(1, 1) }, uW: { value: 2 }, uQ: uQ };
+    var lineMat = new THREE.ShaderMaterial({
+      uniforms: lU, side: THREE.DoubleSide,
+      vertexShader: [
+        'attribute vec3 aA; attribute vec3 aB; attribute vec2 aTS; attribute vec3 aCol;',
+        'uniform vec2 uRes; uniform float uW;',
+        'varying vec3 vLoc; varying vec3 vCol;',
+        'void main(){',
+        '  vec4 ca = projectionMatrix * modelViewMatrix * vec4(aA, 1.0);',
+        '  vec4 cb = projectionMatrix * modelViewMatrix * vec4(aB, 1.0);',
+        '  vec2 d = (cb.xy / cb.w - ca.xy / ca.w) * uRes * 0.5;',
+        '  float L = length(d);',
+        '  vec2 dir = L > 0.0001 ? d / L : vec2(1.0, 0.0);',
+        '  vec2 nrm = vec2(-dir.y, dir.x);',
+        '  vec4 c = mix(ca, cb, aTS.x);',
+        '  vec2 off = (nrm * aTS.y * uW * 0.5 + dir * (aTS.x * 2.0 - 1.0) * uW * 0.5) / (uRes * 0.5);',
+        '  gl_Position = c + vec4(off * c.w, 0.0, 0.0);',
+        '  vLoc = mix(aA, aB, aTS.x); vCol = aCol;',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'uniform float uQ; varying vec3 vLoc; varying vec3 vCol;',
+        FIELD,
+        'void main(){',
+        '  float f = field(vLoc);',
+        '  if (f < uQ) discard;',
+        '  vec3 c = mix(vCol, vec3(1.0), (1.0 - smoothstep(0.0, 0.06, f - uQ)) * 0.85 * step(0.001, uQ));',
+        '  gl_FragColor = vec4(c, 1.0);',
+        '}'
+      ].join('\n')
+    });
+    var lines = new THREE.Mesh(lineGeo, lineMat); lines.frustumCulled = false; folder.add(lines);
+    scene.add(folder);
+
+    /* ----- Particles: the drawing as a cloud of square pixels ----- */
+    var homes = [], rands = [], kinds = [];
+    var addPt = function (x, y, z, kind) { homes.push(x, y, z); rands.push(rnd(), rnd(), rnd(), rnd()); kinds.push(kind); };
+    for (var i = 0; i < 11000; i++) {                     // along the lines
+      var tgt = rnd() * total, lo = 0, hi = lens.length - 1;
+      while (lo < hi) { var mid = (lo + hi) >> 1; if (lens[mid] < tgt) lo = mid + 1; else hi = mid; }
+      var s = segs[lo], t = rnd();
+      addPt(s[0] + (s[3] - s[0]) * t, s[1] + (s[4] - s[1]) * t, s[2] + (s[5] - s[2]) * t, 1);
+    }
+    sheets.forEach(function (sh) {                         // loose dust across each sheet
+      for (var j = 0; j < 450; j++) addPt((rnd() - 0.5) * sh.w * 0.96, sh.y0 + rnd() * sh.h, sh.z, 0);
+    });
+    for (var j = 0; j < 700; j++) addPt((rnd() - 0.5) * 3.0, 0.1 + rnd() * 1.9, ZB, 0);          // back panel
+    for (var j = 0; j < 650; j++) addPt((rnd() - 0.5) * 3.1, rnd() * FH, ZF, 0);                 // front panel
+    for (var j = 0; j < 500; j++) addPt((rnd() - 0.5) * 3.1, 0, (rnd() - 0.5) * 1.0, 0);        // floor
+
+    var pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute('position', new THREE.Float32BufferAttribute(homes, 3));
+    pGeo.setAttribute('aHome', new THREE.Float32BufferAttribute(homes, 3));
+    pGeo.setAttribute('aRand', new THREE.Float32BufferAttribute(rands, 4));
+    pGeo.setAttribute('aKind', new THREE.Float32BufferAttribute(kinds, 1));
+
+    var pU = {
+      uT: { value: 0 }, uK: { value: K }, uPx: { value: 1 }, uSnap: { value: 0.045 },
+      uA: { value: new THREE.Vector3() }, uB: { value: new THREE.Vector3() }, uTrail: { value: R.clone().multiplyScalar(-1) }
+    };
+    var pMat = new THREE.ShaderMaterial({
+      uniforms: pU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: [
+        'attribute vec3 aHome; attribute vec4 aRand; attribute float aKind;',
+        'uniform float uT, uK, uPx, uSnap; uniform vec3 uA, uB, uTrail;',
+        'varying float vA; varying vec3 vC;',
+        FIELD,
+        'void main(){',
+        '  float f = field(aHome);',
+        '  bool released = f < uK * uT;',
+        '  float tRel = clamp(f / uK, 0.0, 1.0);',
+        '  float age = released ? clamp((uT - tRel) / 0.5, 0.0, 1.0) : 0.0;',
+        '  vec3 ref = released ? mix(uA, uB, tRel) : mix(uA, uB, uT);',
+        '  vec3 rn = aRand.xyz * 2.0 - 1.0; rn.y *= 0.6;',
+        '  float e = pow(age, 0.65);',
+        '  vec3 disp = rn * (0.2 + 1.15 * e) * (0.55 + aRand.w)',
+        '            + vec3(0.0, -1.0, 0.0) * age * age * 0.9',
+        '            + uTrail * age * 1.4',
+        '            + vec3(sin(age * 7.0 + aRand.w * 40.0), cos(age * 5.0 + aRand.w * 31.0) * 0.5, sin(age * 4.0 + aRand.w * 23.0)) * 0.28 * age;',
+        '  vec3 wp = ref + aHome + disp;',
+        '  if (released) wp = floor(wp / uSnap + 0.5) * uSnap;',
+        '  gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);',
+        '  float size = (aKind < 0.5 ? 1.6 : 2.2) * (1.0 - 0.45 * age) * (aRand.w > 0.92 ? 1.8 : 1.0);',
+        '  gl_PointSize = max(1.0, floor(size * uPx + 0.5));',
+        '  float a = released ? (1.0 - smoothstep(0.45, 1.0, age)) * (0.5 + 0.5 * aRand.w) : 0.0;',
+        '  float hot = released ? (1.0 - smoothstep(0.0, 0.12, age)) : 0.0;',
+        '  vC = mix(mix(vec3(0.7, 0.85, 1.0), vec3(0.95, 0.98, 1.0), aRand.w), vec3(1.0), hot);',
+        '  vA = a;',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'varying float vA; varying vec3 vC;',
+        'void main(){ if (vA < 0.01) discard; gl_FragColor = vec4(vC, vA); }'
+      ].join('\n')
+    });
+    var points = new THREE.Points(pGeo, pMat); points.frustumCulled = false; scene.add(points);
+
+    /* ----- Layout ----- */
+    var halfTravel = 0.34, pct = [16, 50, 84];
+    var A = pU.uA.value, B = pU.uB.value, cy = new THREE.Vector3(0, 1.1, 0);
+    function resize() {
+      var sw = stage.clientWidth || 1, sh = stage.clientHeight || 1;
+      var wide = sw / sh > 1.05;
+      stage.setAttribute('data-layout', wide ? 'wide' : 'narrow');
+      var cw = canvas.clientWidth || sw, ch = canvas.clientHeight || sh;   // the canvas is only the open middle of the section
+      var dpr = Math.min(window.devicePixelRatio || 1, window.matchMedia('(pointer: coarse)').matches ? 1.5 : 2);
+      renderer.setPixelRatio(dpr);
+      renderer.setSize(cw, ch, false);
+      pU.uPx.value = dpr;
+      lU.uRes.value.set(cw * dpr, ch * dpr);
+      lU.uW.value = 1.6 * dpr;                              // line weight in device pixels
+      var ppu = Math.min(cw * (wide ? 0.22 : 0.46) / 3.7, ch * 0.74 / 3.55);   // fit by width and by the height of the open space
+      var vw = cw / ppu, vh = ch / ppu;
+      camera.left = -vw / 2; camera.right = vw / 2; camera.top = vh / 2; camera.bottom = -vh / 2;
+      camera.updateProjectionMatrix();
+      halfTravel = wide ? 0.34 : 0.28;
+      var up = 0.03;                                        // folder sits a hair above the centre of the open space
+      var base = new THREE.Vector3().addScaledVector(U, vh * up);
+      A.copy(base).addScaledVector(R, -halfTravel * vw).sub(cy);
+      B.copy(base).addScaledVector(R, halfTravel * vw).sub(cy);
+      pct = [50 - halfTravel * 100, 50, 50 + halfTravel * 100];
+      stopEls.forEach(function (el, i) { el.style.left = pct[i] + '%'; });
+      $('track').style.left = 'max(var(--pad), ' + (pct[0] - 8) + '%)';
+      $('track').style.right = 'max(var(--pad), ' + (pct[0] - 8) + '%)';
+    }
+    resize();
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize', resize);
+
+    function render(tt) {
+      uQ.value = K * tt;
+      pU.uT.value = tt;
+      folder.position.copy(A).lerp(B, tt);
+      var k = 1 - clamp(tt * 2.2, 0, 1);                    // glow and halo fade as the glass goes
+      glowMat.opacity = k * k;
+      halo.visible = k > 0.01;
+      halo.position.copy(folder.position).add(cy).addScaledVector(DIR, -3.5);
+      halo.quaternion.copy(camera.quaternion);
+      halo.material.opacity = 0.25 * k * k;
+      renderer.render(scene, camera);
+    }
+    return { render: render, getPct: function () { return pct; } };
+  }
+
+  /* ---------- Scroll + loop ---------- */
+  var target = 0, tt = 0, gl = null;
+  function onScroll() {
+    var r = roller.getBoundingClientRect();
+    var range = r.height - stage.clientHeight;
+    var p = range > 0 ? clamp(-r.top / range, 0, 1) : 0;
+    target = magnet(p * 2) / 2;
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+
+  try {
+    if (!window.THREE) throw new Error('three.js did not load');
+    gl = initGL();
+  } catch (err) {
+    console.warn(err);
+    stage.classList.add('no-gl');
+    stage.setAttribute('data-layout', 'wide');
+    [16, 50, 84].forEach(function (p, i) { stopEls[i].style.left = p + '%'; });
+  }
+
+  onScroll(); tt = target;
+  var mark = $('mark'), last = performance.now(), lastOn = -1;
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    tt = reduce ? target : tt + (target - tt) * (1 - Math.exp(-dt * 6));
+    if (gl) gl.render(tt);
+    var track = $('track');
+    var pct = gl ? gl.getPct() : [16, 50, 84];
+    var stageW = stage.clientWidth || 1, left = track.getBoundingClientRect().left - stage.getBoundingClientRect().left;
+    mark.style.left = ((pct[0] + (pct[2] - pct[0]) * tt) / 100 * stageW - left) + 'px';
+    SAYS.forEach(function (d, i) {
+      var on = tt >= d.at, el = saysEls[i];
+      if ((el.getAttribute('data-on') === 'true') !== on) el.setAttribute('data-on', String(on));
+    });
+    var on = Math.round(tt * 2);
+    if (on !== lastOn) { lastOn = on; stopEls.forEach(function (el, i) { el.setAttribute('data-on', String(i === on)); }); }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
